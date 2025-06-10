@@ -1,0 +1,25 @@
+# Dependencies
+# 로컬에 설치된 수많은 라이브러리 파일들입니다. 용량이 매우 크므로 반드시 제외해야 합니다.
+/node_modules
+
+# Production build
+# 'npm run build' 실행 시 생성되는 최종 결과물 폴더입니다. 소스 코드가 아니므로 제외합니다.
+/build
+/dist
+
+# Environment variables
+# API 키, DB 접속 정보 등 민감한 정보를 담는 파일입니다. 보안상 절대 노출되면 안 됩니다.
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor directories and files
+# VS Code, WebStorm 등 개인 에디터 설정 파일입니다.
+.vscode/
+.idea/
+.DS_Store
