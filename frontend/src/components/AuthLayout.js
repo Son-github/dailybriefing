@@ -1,4 +1,5 @@
 import React from 'react';
+import Logo from '../assets/Logo.png';
 import { Box, Container, Typography } from '@mui/material';
 
 // 로그인 페이지의 'S' 로고
@@ -36,8 +37,17 @@ function AuthLayout({ logoType, title, children }) {
                     alignItems: 'center',
                 }}
             >
-                {/* logoType에 따라 다른 로고를 보여줍니다. */}
-                {logoType === 'login' ? <LoginLogo /> : <SignUpLogo />}
+                {/* 3. 기존의 SVG 컴포넌트 대신, Box를 img 태그처럼 사용하여 이미지를 표시합니다. */}
+                <Box
+                    component="img"
+                    src={Logo} // src 속성에 import한 이미지 변수를 넣어줍니다.
+                    alt={`${logoType} Logo`} // 이미지가 보이지 않을 때 표시될 대체 텍스트
+                    sx={{
+                        width: 80,
+                        height: 80,
+                        mb: title ? 0 : 3 // 타이틀이 없을 경우 로고 아래에 여백을 줍니다.
+                    }}
+                />
 
                 {/* title이 있으면 h5 태그로 보여줍니다. */}
                 {title && (
