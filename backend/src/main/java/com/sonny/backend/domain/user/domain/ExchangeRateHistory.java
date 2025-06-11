@@ -6,21 +6,21 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 
-/* 실시간 환율*/
+/* 환율 이력*/
 @Entity
-@Table(name = "exchange_rates", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"base_currency", "target_currency", "fetched_at"})
+@Table(name = "exchange_rate_history", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"base_currency", "target_currency", "recorded_at"})
 })
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ExchangeRate {
+public class ExchangeRateHistory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long rateId;
+    private Long historyId;
 
     @Column(name = "base_currency", length = 3, nullable = false)
     private String baseCurrency;
@@ -31,6 +31,6 @@ public class ExchangeRate {
     @Column(nullable = false, precision = 18, scale = 6)
     private BigDecimal rate;
 
-    @Column(name = "fetched_at", nullable = false)
-    private ZonedDateTime fetchedAt;
+    @Column(name = "recorded_at", nullable = false)
+    private ZonedDateTime recordedAt;
 }
