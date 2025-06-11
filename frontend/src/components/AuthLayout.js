@@ -43,8 +43,8 @@ function AuthLayout({ logoType, title, children }) {
                     src={Logo} // src 속성에 import한 이미지 변수를 넣어줍니다.
                     alt={`${logoType} Logo`} // 이미지가 보이지 않을 때 표시될 대체 텍스트
                     sx={{
-                        width: 80,
-                        height: 80,
+                        width: 280,
+                        height: 280,
                         mb: title ? 0 : 3 // 타이틀이 없을 경우 로고 아래에 여백을 줍니다.
                     }}
                 />
