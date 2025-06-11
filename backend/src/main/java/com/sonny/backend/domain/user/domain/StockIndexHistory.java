@@ -6,20 +6,22 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 
+/* 지수 이력*/
 @Entity
-@Table(name = "stock_indices", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"index_code", "fetched_at"})
+@Table(name = "stock_index_history", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"index_code", "recorded_at"})
 })
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class StockIndex {
+public class StockIndexHistory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long indexId;
+    @Column(name = "id")
+    private Long historyId;
 
     @Column(name = "index_code", length = 20, nullable = false)
     private String indexCode;
@@ -33,6 +35,6 @@ public class StockIndex {
     @Column(name = "change_rate", precision = 6, scale = 2)
     private BigDecimal changeRate;
 
-    @Column(name = "fetched_at", nullable = false)
-    private ZonedDateTime fetchedAt;
+    @Column(name = "recorded_at", nullable = false)
+    private ZonedDateTime recordedAt;
 }
