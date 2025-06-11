@@ -7,7 +7,7 @@ function SignUpPage() {
     const themeColor = '#f76d57';
 
     return (
-        <AuthLayout logoType="signup" title="SMART INFO HUB">
+        <AuthLayout logoType="signup">
             <Box component="form" noValidate sx={{ mt: 1 }}>
                 <TextField
                     margin="normal"

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Button } from '@mui/material';
+import Logo from '../assets/Logo.png';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import { Link } from 'react-router-dom';
 
@@ -15,8 +16,27 @@ function Header() {
                 mx: 'auto'
             }}
         >
-            <Link to="/" style={{ textDecoration: 'none' }}>
-                <DashboardIcon sx={{ color: '#ff8f8f', fontSize: '32px', display: 'block' }} />
+            <Link
+                to="/"
+                style={{
+                    display: 'inline-block',
+                    margin: 0,
+                    padding: 0,
+                    lineHeight: 0, // 핵심: 하단 공간 제거
+                    textDecoration: 'none',
+                }}
+            >
+                <img
+                    src={Logo}
+                    alt="Dashboard Logo"
+                    style={{
+                        height: '90px',
+                        display: 'block',
+                        margin: 0,
+                        padding: 0,
+                        border: 'none',
+                    }}
+                />
             </Link>
             <Box>
                 <Button
