@@ -38,10 +38,15 @@ function Dashboard() {
 
             <Container maxWidth="sm" sx={{ mt: 2 }}>
                 <Stack spacing={2}>
+                    {/* 날씨 카드 */}
+                    <WeatherCard />
+                    {/* 뉴스 카드 */}
+                    <NewsCard />
                     {/* 환율 카드 */}
                     <InfoCard
-                        icon="🇰🇷"
-                        title="한율"
+                        iconType="PriceChangeIcon"
+                        iconColor="blue"
+                        title="환율"
                         subtitle="USD/KRW"
                         mainValue="1,372.50"
                         changeValue="-5.50"
@@ -71,10 +76,6 @@ function Dashboard() {
                         chartData={nasdaqData}
                         chartColor="#f44336"
                     />
-                    {/* 날씨 카드 */}
-                    <WeatherCard />
-                    {/* 뉴스 카드 */}
-                    <NewsCard />
                 </Stack>
             </Container>
         </Box>
