@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: weather-service
+
+weather:
+  api:
+    url: "/data/2.5/weather"
+    key: ${WEATHER_API_KEY}
