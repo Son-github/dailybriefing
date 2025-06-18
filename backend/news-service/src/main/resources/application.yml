@@ -1,0 +1,19 @@
+openai:
+  api:
+    key: ${OPENAI_API_KEY}
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/newsdb
+    username: postgres
+    password: password
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tagsSorter: alpha
+    operationsSorter: alpha
+
