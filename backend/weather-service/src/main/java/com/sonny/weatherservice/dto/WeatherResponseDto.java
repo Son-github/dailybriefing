@@ -1,14 +1,17 @@
 package com.sonny.weatherservice.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
+import lombok.*;
 
-@Getter
+import java.time.LocalDateTime;
+
+@Getter @Setter
+@NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class WeatherResponseDto {
-    private String city;
-    private String weather;
+    private String location;
     private double temperature;
+    private String sky;
+    private int humidity;
+    private LocalDateTime updateAt;
 }
