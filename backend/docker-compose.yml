@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    networks:
+      - backend-net
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  auth-service:
+    build:
+      context: ./auth-service
+    ports:
+      - "8080:8080"
+    networks:
+      - backend-net
+    depends_on:
+      - postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS}
+
+  exchange-service:
+    build:
+      context: ./exchange-service
+    ports:
+      - "8081:8081"
+    networks:
+      - backend-net
+    depends_on:
+      - postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432\
+      - EXCHANGE_API_KEY=${EXCHANGE_API_KEY}
+    volumes:
+      - ./exchange-service:/app
+
+  stock-service:
+    build:
+      context: ./stock-service
+    ports:
+      - "8082:8082"
+    networks:
+      - backend-net
+    depends_on:
+      - postgres
+
+  weather-service:
+    build:
+      context: ./weather-service
+    ports:
+      - "8083:8083"
+    networks:
+      - backend-net
+    depends_on:
+      - postgres
+
+  airquality-service:
+    build:
+      context: ./airquality-service
+    ports:
+      - "8084:8084"
+    networks:
+      - backend-net
+    depends_on:
+      - postgres
+
+  news-service:
+    build:
+      context: ./news-service
+    ports:
+      - "8085:8085"
+    networks:
+      - backend-net
+    depends_on:
+      - postgres
+
+  dashboard-aggregator-service:
+    build:
+      context: ./dashboard-aggregator-service
+    ports:
+      - "8086:8086"
+    networks:
+      - backend-net
+    depends_on:
+      - auth-service
+      - exchange-service
+      - stock-service
+      - weather-service
+      - airquality-service
+      - news-service
+
+networks:
+  backend-net:
+
+volumes:
+  pgdata:
+
