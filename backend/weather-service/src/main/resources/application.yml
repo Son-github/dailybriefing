@@ -1,8 +1,36 @@
 spring:
-  application:
-    name: weather-service
+  config:
+    import: optional:file:../.env[.properties]  # backend/.env 참조
 
-weather:
-  api:
-    url: "/data/2.5/weather"
-    key: ${WEATHER_API_KEY}
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+external:
+  weather:
+    api-url: https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst
+    service-key: ${WEATHER_API_KEY}
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+server:
+  port: 8083

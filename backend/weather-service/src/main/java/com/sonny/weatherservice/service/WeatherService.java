@@ -2,62 +2,117 @@ package com.sonny.weatherservice.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sonny.weatherservice.config.WeatherConfig;
 import com.sonny.weatherservice.domain.Weather;
 import com.sonny.weatherservice.dto.WeatherResponseDto;
 import com.sonny.weatherservice.repository.WeatherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class WeatherService {
 
-    private final WebClient webClient;
+    private final WeatherConfig weatherConfig;
     private final WeatherRepository weatherRepository;
-    private final ObjectMapper objectMapper =  new ObjectMapper();
+    private final WebClient webClient = WebClient.create();
 
-    @Value("${weather.api.url}")
-    private String apiUrl;
+    public WeatherResponseDto fetchAndSaveSeoulWeather() {
+        String baseDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String baseTime = getClosestTime();
+        int nx = 60, ny = 127; // 서울 중구
 
-    @Value("${weather.api.key}")
-    private String apiKey;
+        String url = UriComponentsBuilder.fromHttpUrl(weatherConfig.getApiUrl())
+                .queryParam("serviceKey", weatherConfig.getServiceKey())
+                .queryParam("numOfRows", 100)
+                .queryParam("pageNo", 1)
+                .queryParam("dataType", "JSON")
+                .queryParam("base_date", baseDate)
+                .queryParam("nx", nx)
+                .queryParam("ny", ny)
+                .build(false) // 인코딩된 인증키를 이중 인코딩하지 않기 위해
+                .toUriString();
 
-    public WeatherResponseDto getCurrentWeather(String city) {
-        String response = webClient.get()
-                .uri(uriBuilder -> uriBuilder.path(apiUrl)
-                        .queryParam("q", city)
-                        .queryParam("appid", apiKey)
-                        .queryParam("units", "metric")
-                        .build())
+        Map<String, String> parsed = webClient.get()
+                .uri(url)
                 .retrieve()
-                .bodyToMono(String.class)
+                .bodyToMono(Map.class)
+                .map(this::parseResponse)
                 .block();
 
+        if (parsed == null) throw new RuntimeException("응답 파싱 실패");
+
+        Weather weather = Weather.builder()
+                .location("서울")
+                .temperature(Double.parseDouble(parsed.getOrDefault("T1H", "0")))
+                .sky(skyCodeToText(parsed.getOrDefault("SKY", "1")))
+                .humidity(Integer.parseInt(parsed.getOrDefault("REH", "0")))
+                .updateAt(toBaseDateTime(baseDate, baseTime))
+                .build();
+
+        weatherRepository.save(weather);
+
+        return WeatherResponseDto.builder()
+                .location(weather.getLocation())
+                .temperature(weather.getTemperature())
+                .sky(weather.getSky())
+                .humidity(weather.getHumidity())
+                .updateAt(weather.getUpdateAt())
+                .build();
+    }
+
+    private Map<String, String> parseResponse(Map<String, Object> response) {
+        Map<String, String> result = new HashMap<>();
         try {
-            JsonNode root = objectMapper.readTree(response);
-            String weather = root.get("weather").get(0).get("main").asText();
-            double temp = root.get("main").get("temp").asDouble();
+            Map<String, Object> resMap = (Map<String, Object>) response.get("response");
+            Map<String, Object> bodyMap = (Map<String, Object>) resMap.get("body");
+            Map<String, Object> itemsMap = (Map<String, Object>) bodyMap.get("items");
+            List<Map<String, Object>> items = (List<Map<String, Object>>) itemsMap.get("item");
 
-            Weather weatherEntity = Weather.builder()
-                    .city(city)
-                    .description(weather)
-                    .temperature(temp)
-                    .fetchedAt(LocalDateTime.now())
-                    .build();
-            weatherRepository.save(weatherEntity);
-
-            return WeatherResponseDto.builder()
-                    .city(city)
-                    .weather(weather)
-                    .temperature(temp)
-                    .build();
+            for (Map<String, Object> item : items) {
+                String category = (String) item.get("category");
+                String value = (String) item.get("fcstValue");
+                result.put(category, value);
+            }
         } catch (Exception e) {
-            throw new RuntimeException("날씨 데이터를 처리하는 중 오류 발생", e);
+            e.printStackTrace();
         }
+        return result;
+    }
+
+    private String skyCodeToText(String code) {
+        return switch (code) {
+            case "1" -> "맑음";
+            case "3" -> "구름많음";
+            case "4" -> "흐림";
+            default -> "정보없음";
+        };
+    }
+
+    private String getClosestTime() {
+        int[] baseHours = {2, 5, 8, 11, 14, 17, 20, 23};
+        int now = LocalTime.now().getHour();
+        int closest = Arrays.stream(baseHours)
+                .filter(h -> h <= now)
+                .max()
+                .orElse(23);
+        return String.format("%02d00", closest);
+    }
+
+    private LocalDateTime toBaseDateTime(String date, String time) {
+        return LocalDateTime.parse(date + time, DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
     }
 }

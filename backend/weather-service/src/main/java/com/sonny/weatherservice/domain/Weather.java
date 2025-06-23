@@ -2,8 +2,10 @@ package com.sonny.weatherservice.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.GenericGenerator;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Getter @Setter
@@ -13,18 +15,17 @@ import java.time.LocalDateTime;
 public class Weather {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(generator = "UUID")
+    @GenericGenerator(
+            name = "UUID",
+            strategy = "org.hibernate.id.UUIDGenerator"
+    )
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
-    @Column(name = "city", nullable = false, length = 100)
-    private String city;
-
-    @Column(name = "description", nullable = false)
-    private String description;
-
-    @Column(name = "temperature", nullable = false, length = 10)
-    private Double temperature;
-
-    @Column(name = "fetchedAt")
-    private LocalDateTime fetchedAt;
+    private String location;
+    private double temperature;
+    private String sky;
+    private int humidity;
+    private LocalDateTime updateAt;
 }
