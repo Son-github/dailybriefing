@@ -40,14 +40,23 @@ public class WeatherService {
                 .queryParam("numOfRows", 100)
                 .queryParam("pageNo", 1)
                 .queryParam("dataType", "JSON")
-                .queryParam("base_date", baseDate)
+                .queryParam("base_time", baseTime)
                 .queryParam("nx", nx)
                 .queryParam("ny", ny)
                 .build(false) // 인코딩된 인증키를 이중 인코딩하지 않기 위해
                 .toUriString();
 
+        String response = webClient.get()
+                .uri(url)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block(); // 동기적으로 응답 받기
+
+        System.out.println("🧾 API 응답 본문:\n" + response);
+
         Map<String, String> parsed = webClient.get()
                 .uri(url)
+                .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .bodyToMono(Map.class)
                 .map(this::parseResponse)
@@ -84,11 +93,11 @@ public class WeatherService {
 
             for (Map<String, Object> item : items) {
                 String category = (String) item.get("category");
-                String value = (String) item.get("fcstValue");
+                String value = String.valueOf(item.get("fcstValue"));
                 result.put(category, value);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new RuntimeException("기상청 응답 파싱 실패", e);
         }
         return result;
     }
