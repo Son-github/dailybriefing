@@ -15,6 +15,24 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  weather-service:
+    build:
+      context: ./weather-service
+    container_name: weather-service
+    ports:
+      - "8083:8083" # 왼쪽은 외부, 오른쪽은 컨테이너 내부 포트
+    networks:
+      - backend-net
+    depends_on:
+      - postgres
+    environment:
+      POSTGRES_DB: dashboard
+      POSTGRES_USER: sonny
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"  # 🔥 반드시 문자열!
+      WEATHER_API_KEY: "wVTEulNe7szg24bFXQR97HNuuhLPsv7cyJrNUna3jrQ89YkWS5cm7%2FJvmv6Hbrq7sIYgIT0edqmbAf%2B8BQummQ%3D%3D"
+
 #  auth-service:
 #    build:
 #      context: ./auth-service
@@ -61,24 +79,6 @@ services:
 #      - backend-net
 #    depends_on:
 #      - postgres
-
-  weather-service:
-    build:
-      context: ./weather-service
-    container_name: weather-service
-    ports:
-      - "8083:8083"
-    networks:
-      - backend-net
-    depends_on:
-      - postgres
-    environment:
-      POSTGRES_DB: dashboard
-      POSTGRES_USER: sonny
-      POSTGRES_PASSWORD: password
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: "5432"  # 🔥 반드시 문자열!
-      WEATHER_API_KEY: wVTEulNe7szg24bFXQR97HNuuhLPsv7cyJrNUna3jrQ89YkWS5cm7%2FJvmv6Hbrq7sIYgIT0edqmbAf%2B8BQummQ%3D%3D
 
 
 #  airquality-service:
