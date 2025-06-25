@@ -31,7 +31,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"  # 🔥 반드시 문자열!
-      WEATHER_API_KEY: "wVTEulNe7szg24bFXQR97HNuuhLPsv7cyJrNUna3jrQ89YkWS5cm7%2FJvmv6Hbrq7sIYgIT0edqmbAf%2B8BQummQ%3D%3D"
+      WEATHER_API_KEY: wVTEulNe7szg24bFXQR97HNuuhLPsv7cyJrNUna3jrQ89YkWS5cm7/Jvmv6Hbrq7sIYgIT0edqmbAf+8BQummQ==
 
 #  auth-service:
 #    build:

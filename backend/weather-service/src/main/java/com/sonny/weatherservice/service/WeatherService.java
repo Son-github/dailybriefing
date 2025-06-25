@@ -8,6 +8,7 @@ import com.sonny.weatherservice.dto.WeatherResponseDto;
 import com.sonny.weatherservice.repository.WeatherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -28,41 +29,44 @@ public class WeatherService {
 
     private final WeatherConfig weatherConfig;
     private final WeatherRepository weatherRepository;
-    private final WebClient webClient = WebClient.create();
+    private final WebClient webClient = WebClient.builder()
+            .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+            .build();
 
     public WeatherResponseDto fetchAndSaveSeoulWeather() {
         String baseDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String baseTime = getClosestTime();
-        int nx = 60, ny = 127; // 서울 중구
+        int nx = 60, ny = 127;
 
         String url = UriComponentsBuilder.fromHttpUrl(weatherConfig.getApiUrl())
                 .queryParam("serviceKey", weatherConfig.getServiceKey())
                 .queryParam("numOfRows", 100)
                 .queryParam("pageNo", 1)
                 .queryParam("dataType", "JSON")
+                .queryParam("base_date", baseDate)
                 .queryParam("base_time", baseTime)
                 .queryParam("nx", nx)
                 .queryParam("ny", ny)
-                .build(false) // 인코딩된 인증키를 이중 인코딩하지 않기 위해
+                .build(false) // 이중 인코딩 방지
                 .toUriString();
 
         String response = webClient.get()
                 .uri(url)
-                .retrieve()
-                .bodyToMono(String.class)
-                .block(); // 동기적으로 응답 받기
-
-        System.out.println("🧾 API 응답 본문:\n" + response);
-
-        Map<String, String> parsed = webClient.get()
-                .uri(url)
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
-                .bodyToMono(Map.class)
-                .map(this::parseResponse)
+                .bodyToMono(String.class)
+                .doOnNext(res -> System.out.println("🧾 API 응답 본문:\n" + res))
                 .block();
 
-        if (parsed == null) throw new RuntimeException("응답 파싱 실패");
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> map;
+        try {
+            map = mapper.readValue(response, Map.class);
+        } catch (Exception e) {
+            throw new RuntimeException("JSON 파싱 실패", e);
+        }
+
+        Map<String, String> parsed = parseResponse(map);
 
         Weather weather = Weather.builder()
                 .location("서울")
@@ -125,3 +129,4 @@ public class WeatherService {
         return LocalDateTime.parse(date + time, DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
     }
 }
+
