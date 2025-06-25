@@ -15,41 +15,42 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  weather-service:
-    build:
-      context: ./weather-service
-    container_name: weather-service
-    ports:
-      - "8083:8083" # 왼쪽은 외부, 오른쪽은 컨테이너 내부 포트
-    networks:
-      - backend-net
-    depends_on:
-      - postgres
-    environment:
-      POSTGRES_DB: dashboard
-      POSTGRES_USER: sonny
-      POSTGRES_PASSWORD: password
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: "5432"  # 🔥 반드시 문자열!
-      WEATHER_API_KEY: wVTEulNe7szg24bFXQR97HNuuhLPsv7cyJrNUna3jrQ89YkWS5cm7/Jvmv6Hbrq7sIYgIT0edqmbAf+8BQummQ==
-
-#  auth-service:
+#  weather-service:
 #    build:
-#      context: ./auth-service
+#      context: ./weather-service
+#    container_name: weather-service
 #    ports:
-#      - "8080:8080"
+#      - "8083:8083" # 왼쪽은 외부, 오른쪽은 컨테이너 내부 포트
 #    networks:
 #      - backend-net
 #    depends_on:
 #      - postgres
 #    environment:
-#      - POSTGRES_DB=${POSTGRES_DB}
-#      - POSTGRES_USER=${POSTGRES_USER}
-#      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-#      - POSTGRES_HOST=postgres
-#      - POSTGRES_PORT=5432
-#      - JWT_SECRET=${JWT_SECRET}
-#      - JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS}
+#      POSTGRES_DB: dashboard
+#      POSTGRES_USER: sonny
+#      POSTGRES_PASSWORD: password
+#      POSTGRES_HOST: postgres
+#      POSTGRES_PORT: "5432"  # 🔥 반드시 문자열!
+#      WEATHER_API_KEY: wVTEulNe7szg24bFXQR97HNuuhLPsv7cyJrNUna3jrQ89YkWS5cm7/Jvmv6Hbrq7sIYgIT0edqmbAf+8BQummQ==
+
+  auth-service:
+    build:
+      context: ./auth-service
+    container_name: auth-service
+    ports:
+      - "8081:8081"
+    networks:
+      - backend-net
+    depends_on:
+      - postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS}
 
 #  exchange-service:
 #    build:
