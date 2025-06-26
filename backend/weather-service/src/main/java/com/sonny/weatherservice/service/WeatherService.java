@@ -8,6 +8,7 @@ import com.sonny.weatherservice.dto.WeatherResponseDto;
 import com.sonny.weatherservice.repository.WeatherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WeatherService {
@@ -35,12 +37,14 @@ public class WeatherService {
 
     public WeatherResponseDto fetchAndSaveSeoulWeather() {
         String baseDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String baseTime = getClosestTime();
+        String baseTime = getClosestValidForecastTime();
         int nx = 60, ny = 127;
+
+        log.info("사용 중인 API KEY: '{}'", weatherConfig.getServiceKey());
 
         String url = UriComponentsBuilder.fromHttpUrl(weatherConfig.getApiUrl())
                 .queryParam("serviceKey", weatherConfig.getServiceKey())
-                .queryParam("numOfRows", 100)
+                .queryParam("numOfRows", 10)
                 .queryParam("pageNo", 1)
                 .queryParam("dataType", "JSON")
                 .queryParam("base_date", baseDate)
@@ -50,13 +54,18 @@ public class WeatherService {
                 .build(false) // 이중 인코딩 방지
                 .toUriString();
 
+        log.info("url : {}", url);
+
         String response = webClient.get()
                 .uri(url)
+                .header("User-Agent", "Mozilla/5.0") // 브라우저처럼 위장
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .bodyToMono(String.class)
                 .doOnNext(res -> System.out.println("🧾 API 응답 본문:\n" + res))
                 .block();
+
+        log.info("Response : {}", response);
 
         ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> map;
@@ -115,15 +124,22 @@ public class WeatherService {
         };
     }
 
-    private String getClosestTime() {
-        int[] baseHours = {2, 5, 8, 11, 14, 17, 20, 23};
-        int now = LocalTime.now().getHour();
-        int closest = Arrays.stream(baseHours)
-                .filter(h -> h <= now)
-                .max()
-                .orElse(23);
-        return String.format("%02d00", closest);
+    private String getClosestValidForecastTime() {
+        int[] forecastHours = {2, 5, 8, 11, 14, 17, 20, 23};
+        LocalDateTime now = LocalDateTime.now();
+
+        for (int i = forecastHours.length - 1; i >= 0; i--) {
+            LocalDateTime candidate = now.withHour(forecastHours[i]).withMinute(0).withSecond(0).withNano(0);
+            // 예보는 생성되고 API에 반영되기까지 약 45~60분 정도 걸림
+            if (now.isAfter(candidate.plusMinutes(45))) {
+                return String.format("%02d00", forecastHours[i]);
+            }
+        }
+
+        // 모든 조건을 못 맞췄으면 → 전날 2300 예보를 사용
+        return "2300";
     }
+
 
     private LocalDateTime toBaseDateTime(String date, String time) {
         return LocalDateTime.parse(date + time, DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
