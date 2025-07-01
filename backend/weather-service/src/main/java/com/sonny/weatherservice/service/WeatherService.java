@@ -54,7 +54,11 @@ public class WeatherService {
                 .build(false) // 이중 인코딩 방지
                 .toUriString();
 
-        log.info("url : {}", url);
+        log.info("✅ 최종 API URL: {}", url);
+        log.info("🌐 최종 URL (역슬래시 제거): {}", url.replace("\\", ""));
+        long backslashCount = url.chars().filter(c -> c == '\\').count();
+        log.info("🔍 역슬래시 개수: {}", backslashCount);
+        log.info("✅ API KEY 원본문자: [{}], 길이: {}", weatherConfig.getServiceKey(), weatherConfig.getServiceKey().length());
 
         String response = webClient.get()
                 .uri(url)
