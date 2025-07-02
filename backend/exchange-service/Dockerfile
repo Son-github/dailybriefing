@@ -1,10 +1,10 @@
-FROM eclipse-temurin:21-jdk-alpine
-
+FROM eclipse-temurin:21-jdk as builder
 WORKDIR /app
+COPY . .
+RUN ./gradlew clean build -x test
 
-# 빌드된 JAR 복사
-ARG JAR_FILE=build/libs/exchange-service-0.0.1-SNAPSHOT.jar
-COPY ${JAR_FILE} app.jar
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+COPY --from=builder /app/build/libs/*.jar app.jar
+ENTRYPOINT ["java", "-jar", "app.jar"]
 
-# 환경변수 파일 로딩을 위한 run-time shell 사용
-ENTRYPOINT ["sh", "-c", "java -jar -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE} app.jar"]

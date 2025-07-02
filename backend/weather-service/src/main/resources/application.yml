@@ -15,7 +15,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        default_schema: weather
     database-platform: org.hibernate.dialect.PostgreSQLDialect
 
 external:
