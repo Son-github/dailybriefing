@@ -15,11 +15,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        default_schema: exchange
     database-platform: org.hibernate.dialect.PostgreSQLDialect
 
 external:
-  weather:
+  exchange:
     api-url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON
     service-key: ${EXCHANGE_API_KEY}
 

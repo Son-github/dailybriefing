@@ -52,24 +52,23 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS}
 
-#  exchange-service:
-#    build:
-#      context: ./exchange-service
-#    ports:
-#      - "8081:8081"
-#    networks:
-#      - backend-net
-#    depends_on:
-#      - postgres
-#    environment:
-#      - POSTGRES_DB=${POSTGRES_DB}
-#      - POSTGRES_USER=${POSTGRES_USER}
-#      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-#      - POSTGRES_HOST=postgres
-#      - POSTGRES_PORT=5432\
-#      - EXCHANGE_API_KEY=${EXCHANGE_API_KEY}
-#    volumes:
-#      - ./exchange-service:/app
+  exchange-service:
+    build:
+      context: ./exchange-service
+    container_name: exchange-service
+    ports:
+      - "8082:8082"
+    networks:
+      - backend-net
+    depends_on:
+      - postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - EXCHANGE_API_KEY=${EXCHANGE_API_KEY}
 
 #  stock-service:
 #    build:

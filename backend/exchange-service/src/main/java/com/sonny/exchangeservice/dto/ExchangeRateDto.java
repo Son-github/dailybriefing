@@ -1,12 +1,18 @@
 package com.sonny.exchangeservice.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.util.Map;
 
 public record ExchangeRateDto(
         String baseCurrency,
-        Map<String, Double> rates,
-        String lastUpdate
+        String targetCurrency,
+        Double rate,
+        String fetchedDate
 ) {}
+
 
 /* class 대신 record를 쓰는 이유는 단순히 값만 전달하는 단순 응답 DTO이기 때문에
 *  equals, hashCode, toString 자동 생성

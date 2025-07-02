@@ -5,6 +5,7 @@ import com.sonny.exchangeservice.service.ExchangeRateService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -25,16 +26,15 @@ class ExchangeRateControllerTest {
     private ExchangeRateService exchangeRateService;
 
     @Test
-    @DisplayName("GET /api/dashboard/exchange/USD - 성공")
-    void getRate_success() throws Exception {
-        ExchangeRateDto mockDto = new ExchangeRateDto("USD", Map.of("KRW", 1350.0), "2025-06-17");
+    void getUsdToKrwRate_success() throws Exception {
+        ExchangeRateDto mockDto = new ExchangeRateDto("USD", Map.of("KRW", 1386.0), "20250702");
         when(exchangeRateService.getLatestRate("USD")).thenReturn(mockDto);
 
-        mockMvc.perform(get("/api/dashboard/exchange/USD"))
+        mockMvc.perform(get("/api/exchange"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("success"))
                 .andExpect(jsonPath("$.data.baseCurrency").value("USD"))
-                .andExpect(jsonPath("$.data.rates.KRW").value(1350.0));
+                .andExpect(jsonPath("$.data.rates.KRW").value(1386.0))
+                .andExpect(jsonPath("$.data.date").value("20250702"));
     }
-
 }

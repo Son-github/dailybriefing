@@ -2,58 +2,73 @@ package com.sonny.exchangeservice.service;
 
 import com.sonny.exchangeservice.domain.ExchangeRate;
 import com.sonny.exchangeservice.dto.ExchangeRateDto;
+import com.sonny.exchangeservice.dto.ExchangeResponseDto;
 import com.sonny.exchangeservice.repository.ExchangeRateRepository;
-import org.springframework.http.ResponseEntity;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.List;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class ExchangeRateService {
 
-    private static final String API_URL_TEMPLATE = "https://open.er-api.com/v6/latest/";
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final WebClient webClient;
     private final ExchangeRateRepository repository;
 
-    public ExchangeRateService(ExchangeRateRepository repository) {
-        this.repository = repository;
+    @Value("${external.exchange.api-url}")
+    private String apiUrl;
+
+    @Value("${external.exchange.service-key}")
+    private String serviceKey;
+
+    public ExchangeRateDto getLatestRate() {
+        LocalDate today = LocalDate.now();
+
+        return repository.findByBaseCurrencyAndTargetCurrencyAndFetchedDate("USD", "KRW", today)
+                .map(this::convertToDto)
+                .orElseGet(() -> fetchAndSave(today));
     }
 
-    public ExchangeRateDto getLatestRate(String base) {
-        try {
-            String url = API_URL_TEMPLATE + base.toUpperCase();
-            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-            Map<String, Object> body = response.getBody();
+    private ExchangeRateDto fetchAndSave(LocalDate date) {
+        List<ExchangeResponseDto> response = webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path(apiUrl)
+                        .queryParam("authkey", serviceKey)
+                        .queryParam("data", "AP01")
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<ExchangeResponseDto>>() {})
+                .block();
 
-            Map<String, Object> rawRates = (Map<String, Object>) body.get("conversion_rates");
-            Map<String, Double> rates = rawRates.entrySet().stream()
-                    .filter(e -> e.getValue() instanceof Number)
-                    .collect(Collectors.toMap(
-                            Map.Entry::getKey,
-                            e -> ((Number) e.getValue()).doubleValue()
-                    ));
+        ExchangeResponseDto usd = response.stream()
+                .filter(dto -> "USD".equalsIgnoreCase(dto.getCurrencyUnit()))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("USD 환율 없음"));
 
-            String time = (String) body.get("time_last_update_utc");
+        double rate = Double.parseDouble(usd.getDealBasR().replace(",", ""));
 
-            if (rates.containsKey("KRW")) {
-                repository.save(ExchangeRate.builder()
-                        .baseCurrency(base.toUpperCase())
-                        .targetCurrency("KRW")
-                        .rate(rates.get("KRW"))
-                        .fetchedAt(LocalDateTime.now())
-                        .build());
-            }
+        ExchangeRate entity = ExchangeRate.builder()
+                .baseCurrency("USD")
+                .targetCurrency("KRW")
+                .rate(rate)
+                .fetchedDate(date)
+                .createdAt(LocalDateTime.now())
+                .build();
 
-            return new ExchangeRateDto(base, rates, time);
+        repository.save(entity);
 
-        } catch (HttpClientErrorException e) {
-            throw new RuntimeException("외부 환율 API 요청 실패: " + e.getStatusCode());
-        } catch (Exception e) {
-            throw new RuntimeException("환율 데이터 처리 중 오류 발생: " + e.getMessage());
-        }
+        return convertToDto(entity);
+    }
+
+    private ExchangeRateDto convertToDto(ExchangeRate e) {
+        return new ExchangeRateDto(e.getBaseCurrency(), e.getTargetCurrency(), e.getRate(), e.getFetchedDate().toString());
     }
 }
