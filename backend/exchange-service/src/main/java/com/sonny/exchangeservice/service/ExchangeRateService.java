@@ -30,6 +30,7 @@ public class ExchangeRateService {
     private String serviceKey;
 
     public ExchangeRateDto getLatestRate() {
+        log.info("getLatestRate 시작");
         LocalDate today = LocalDate.now();
 
         return repository.findByBaseCurrencyAndTargetCurrencyAndFetchedDate("USD", "KRW", today)
@@ -38,6 +39,7 @@ public class ExchangeRateService {
     }
 
     private ExchangeRateDto fetchAndSave(LocalDate date) {
+        log.info("외부 API 호출 시작");
         List<ExchangeResponseDto> response = webClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path(apiUrl)
@@ -48,10 +50,15 @@ public class ExchangeRateService {
                 .bodyToMono(new ParameterizedTypeReference<List<ExchangeResponseDto>>() {})
                 .block();
 
+        log.info("외부 API 결과: {}", response);
+
         ExchangeResponseDto usd = response.stream()
                 .filter(dto -> "USD".equalsIgnoreCase(dto.getCurrencyUnit()))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("USD 환율 없음"));
+                .orElseThrow(() -> {
+                    log.error("usd 환율 데이터 찾을 수 없음");
+                    return new RuntimeException("USD 환율 없음");
+                });
 
         double rate = Double.parseDouble(usd.getDealBasR().replace(",", ""));
 
