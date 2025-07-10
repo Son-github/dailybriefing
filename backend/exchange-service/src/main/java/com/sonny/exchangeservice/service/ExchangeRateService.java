@@ -10,7 +10,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URI;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,15 +42,21 @@ public class ExchangeRateService {
 
     private ExchangeRateDto fetchAndSave(LocalDate date) {
         log.info("외부 API 호출 시작");
+
+        URI finalUri = UriComponentsBuilder.fromUriString(apiUrl)
+                .queryParam("authkey", serviceKey)
+                .queryParam("data", "AP01")
+                .build()
+                .toUri();
+
+        log.info("📡 최종 요청 URI: {}", finalUri);
+
         List<ExchangeResponseDto> response = webClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path(apiUrl)
-                        .queryParam("authkey", serviceKey)
-                        .queryParam("data", "AP01")
-                        .build())
+                .uri(finalUri)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<ExchangeResponseDto>>() {})
                 .block();
+
 
         log.info("외부 API 결과: {}", response);
 

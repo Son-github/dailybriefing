@@ -21,6 +21,7 @@ external:
   exchange:
     api-url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON
     service-key: ${EXCHANGE_API_KEY}
+    data: AP01
 
 logging:
   level:
