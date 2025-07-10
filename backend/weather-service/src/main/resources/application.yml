@@ -19,7 +19,7 @@ spring:
 
 external:
   weather:
-    api-url: https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst
+    api-url: http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst
     service-key: ${WEATHER_API_KEY}
 
 logging:
