@@ -1,90 +1,82 @@
 package com.sonny.weatherservice.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sonny.weatherservice.config.WeatherConfig;
 import com.sonny.weatherservice.domain.Weather;
 import com.sonny.weatherservice.dto.WeatherResponseDto;
 import com.sonny.weatherservice.repository.WeatherRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+
+import org.w3c.dom.*;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class WeatherService {
 
-    private final WeatherConfig weatherConfig;
+    @Value("${external.weather.api-url}")
+    private String apiUrl;
+
+    @Value("${external.weather.service-key}")
+    private String serviceKey;
+
     private final WeatherRepository weatherRepository;
-    private final WebClient webClient = WebClient.builder()
-            .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-            .build();
+    private final WebClient webClient = WebClient.builder().build();
 
     public WeatherResponseDto fetchAndSaveSeoulWeather() {
-        String baseDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String baseTime = getClosestValidForecastTime();
-        int nx = 60, ny = 127;
+        String[] base = getBaseDateAndTimeForUltraSrtNcst();
+        String baseDate = base[0];
+        String baseTime = base[1];
+        int nx = 55, ny = 127;
 
-        log.info("사용 중인 API KEY: '{}'", weatherConfig.getServiceKey());
+        log.info("apiurl: {}", apiUrl);
+        log.info("servicekey: {}", serviceKey);
 
-        String url = UriComponentsBuilder.fromHttpUrl(weatherConfig.getApiUrl())
-                .queryParam("serviceKey", weatherConfig.getServiceKey())
-                .queryParam("numOfRows", 10)
+        String url = UriComponentsBuilder.fromHttpUrl(apiUrl)
+                .queryParam("serviceKey", serviceKey)
+                .queryParam("numOfRows", 100)
                 .queryParam("pageNo", 1)
-                .queryParam("dataType", "JSON")
+                .queryParam("dataType", "XML")
                 .queryParam("base_date", baseDate)
                 .queryParam("base_time", baseTime)
                 .queryParam("nx", nx)
                 .queryParam("ny", ny)
-                .build(false) // 이중 인코딩 방지
+                .build(false)
                 .toUriString();
 
-        log.info("✅ 최종 API URL: {}", url);
-        log.info("🌐 최종 URL (역슬래시 제거): {}", url.replace("\\", ""));
-        long backslashCount = url.chars().filter(c -> c == '\\').count();
-        log.info("🔍 역슬래시 개수: {}", backslashCount);
-        log.info("✅ API KEY 원본문자: [{}], 길이: {}", weatherConfig.getServiceKey(), weatherConfig.getServiceKey().length());
+        log.info("최종 생성된 uri: {}", url);
 
-        String response = webClient.get()
+        String xml = webClient.get()
                 .uri(url)
-                .header("User-Agent", "Mozilla/5.0") // 브라우저처럼 위장
-                .accept(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_XML)
                 .retrieve()
                 .bodyToMono(String.class)
-                .doOnNext(res -> System.out.println("🧾 API 응답 본문:\n" + res))
                 .block();
 
-        log.info("Response : {}", response);
+        log.info("xml 응답: {}", xml);
 
-        ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> map;
-        try {
-            map = mapper.readValue(response, Map.class);
-        } catch (Exception e) {
-            throw new RuntimeException("JSON 파싱 실패", e);
-        }
-
-        Map<String, String> parsed = parseResponse(map);
+        Map<String, String> parsed = parseXmlWeather(xml);
 
         Weather weather = Weather.builder()
                 .location("서울")
                 .temperature(Double.parseDouble(parsed.getOrDefault("T1H", "0")))
-                .sky(skyCodeToText(parsed.getOrDefault("SKY", "1")))
+                .rainType(rainCodeToText(parsed.getOrDefault("PTY", "0")))
                 .humidity(Integer.parseInt(parsed.getOrDefault("REH", "0")))
                 .updateAt(toBaseDateTime(baseDate, baseTime))
                 .build();
@@ -94,59 +86,84 @@ public class WeatherService {
         return WeatherResponseDto.builder()
                 .location(weather.getLocation())
                 .temperature(weather.getTemperature())
-                .sky(weather.getSky())
+                .rainType(weather.getRainType())
                 .humidity(weather.getHumidity())
                 .updateAt(weather.getUpdateAt())
                 .build();
     }
 
-    private Map<String, String> parseResponse(Map<String, Object> response) {
+    private Map<String, String> parseXmlWeather(String xml) {
         Map<String, String> result = new HashMap<>();
         try {
-            Map<String, Object> resMap = (Map<String, Object>) response.get("response");
-            Map<String, Object> bodyMap = (Map<String, Object>) resMap.get("body");
-            Map<String, Object> itemsMap = (Map<String, Object>) bodyMap.get("items");
-            List<Map<String, Object>> items = (List<Map<String, Object>>) itemsMap.get("item");
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            InputStream is = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8));
+            Document doc = builder.parse(is);
+            NodeList items = doc.getElementsByTagName("item");
 
-            for (Map<String, Object> item : items) {
-                String category = (String) item.get("category");
-                String value = String.valueOf(item.get("fcstValue"));
-                result.put(category, value);
+            for (int i = 0; i < items.getLength(); i++) {
+                Node item = items.item(i);
+                if (item.getNodeType() == Node.ELEMENT_NODE) {
+                    Element element = (Element) item;
+                    String category = getTextContent(element, "category");
+                    String value = getTextContent(element, "obsrValue");
+                    result.put(category, value);
+                }
             }
         } catch (Exception e) {
-            throw new RuntimeException("기상청 응답 파싱 실패", e);
+            throw new RuntimeException("XML 파싱 실패", e);
         }
         return result;
     }
 
-    private String skyCodeToText(String code) {
+    private String getTextContent(Element element, String tagName) {
+        NodeList nodeList = element.getElementsByTagName(tagName);
+        if (nodeList.getLength() > 0) {
+            return nodeList.item(0).getTextContent();
+        }
+        return "";
+    }
+
+    private String rainCodeToText(String code) {
         return switch (code) {
-            case "1" -> "맑음";
-            case "3" -> "구름많음";
-            case "4" -> "흐림";
+            case "0" -> "없음";
+            case "1" -> "비";
+            case "2" -> "비/눈";
+            case "3" -> "눈";
+            case "4" -> "소나기";
             default -> "정보없음";
         };
     }
 
-    private String getClosestValidForecastTime() {
-        int[] forecastHours = {2, 5, 8, 11, 14, 17, 20, 23};
-        LocalDateTime now = LocalDateTime.now();
-
-        for (int i = forecastHours.length - 1; i >= 0; i--) {
-            LocalDateTime candidate = now.withHour(forecastHours[i]).withMinute(0).withSecond(0).withNano(0);
-            // 예보는 생성되고 API에 반영되기까지 약 45~60분 정도 걸림
-            if (now.isAfter(candidate.plusMinutes(45))) {
-                return String.format("%02d00", forecastHours[i]);
-            }
-        }
-
-        // 모든 조건을 못 맞췄으면 → 전날 2300 예보를 사용
-        return "2300";
-    }
-
-
     private LocalDateTime toBaseDateTime(String date, String time) {
         return LocalDateTime.parse(date + time, DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
     }
+
+    private String[] getBaseDateAndTimeForUltraSrtNcst() {
+        LocalDateTime now = LocalDateTime.now();
+
+        if (now.getHour() < 1) {
+            return new String[] {
+                    now.minusDays(1).format(DateTimeFormatter.ofPattern("yyyyMMdd")),
+                    "2300"
+            };
+        }
+
+        for (int h = now.getHour(); h >= 0; h--) {
+            LocalDateTime candidate = now.withHour(h).withMinute(0).withSecond(0).withNano(0);
+            if (now.isAfter(candidate.plusMinutes(45))) {
+                return new String[] {
+                        now.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
+                        String.format("%02d00", h)
+                };
+            }
+        }
+
+        return new String[] {
+                now.minusDays(1).format(DateTimeFormatter.ofPattern("yyyyMMdd")),
+                "2300"
+        };
+    }
 }
+
 

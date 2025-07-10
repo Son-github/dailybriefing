@@ -8,7 +8,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Getter @Setter
+@Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
@@ -25,7 +26,7 @@ public class Weather {
 
     private String location;
     private double temperature;
-    private String sky;
+    private String rainType; // sky -> rainType 으로 변경
     private int humidity;
     private LocalDateTime updateAt;
 }
