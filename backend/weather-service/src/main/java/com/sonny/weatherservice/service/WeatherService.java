@@ -4,6 +4,7 @@ import com.sonny.weatherservice.config.WeatherConfig;
 import com.sonny.weatherservice.domain.Weather;
 import com.sonny.weatherservice.dto.WeatherResponseDto;
 import com.sonny.weatherservice.repository.WeatherRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,8 +31,8 @@ import org.w3c.dom.*;
 @RequiredArgsConstructor
 public class WeatherService {
 
-    @Value("${external.weather.api-url}")
-    private String apiUrl;
+    //@Value("${external.weather.api-url}")
+    private String apiUrl = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst";
 
     @Value("${external.weather.service-key}")
     private String serviceKey;
@@ -57,7 +58,7 @@ public class WeatherService {
                 .queryParam("base_time", baseTime)
                 .queryParam("nx", nx)
                 .queryParam("ny", ny)
-                .build(false)
+                .build(true)
                 .toUriString();
 
         log.info("최종 생성된 uri: {}", url);
