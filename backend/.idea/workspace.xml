@@ -4,11 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c1e4e131-b684-4637-b498-7867d5df6a98" name="변경" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/weather-service/src/main/java/com/sonny/weatherservice/service/WeatherService.java" beforeDir="false" afterPath="$PROJECT_DIR$/weather-service/src/main/java/com/sonny/weatherservice/service/WeatherService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/weather-service/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/weather-service/src/main/resources/application.yml" afterDir="false" />
-    </list>
+    <list default="true" id="c1e4e131-b684-4637-b498-7867d5df6a98" name="변경" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -162,7 +158,7 @@
       <workItem from="1750774107777" duration="7612000" />
       <workItem from="1750946243589" duration="8718000" />
       <workItem from="1751440336876" duration="44000" />
-      <workItem from="1752500096648" duration="4773000" />
+      <workItem from="1752500096648" duration="5052000" />
     </task>
     <servers />
   </component>
