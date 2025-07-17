@@ -28,8 +28,13 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Column(length = 512)
+    private String refreshToken; // ✅ 새로 추가
+
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @LastModifiedDate
+    private LocalDateTime updatedAt; // ✅ 새로 추가
 }

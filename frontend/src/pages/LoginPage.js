@@ -1,14 +1,44 @@
-import React from 'react';
-import { Box, Typography, TextField, Button, Link } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
-import AuthLayout from '../components/AuthLayout'; // 방금 만든 레이아웃 import
+import React, { useState } from 'react';
+import { Box, Typography, TextField, Button, Link, Alert } from '@mui/material';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import AuthLayout from '../components/AuthLayout';
 
 function LoginPage() {
+    const [form, setForm] = useState({ email: '', password: '' });
+    const [error, setError] = useState('');
+    const navigate = useNavigate();
     const themeColor = '#f76d57';
+
+    const handleChange = (e) => {
+        setForm({ ...form, [e.target.name]: e.target.value });
+        setError('');
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch('http://localhost:8081/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(form)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || '로그인 실패');
+            }
+
+            const data = await response.json();
+            localStorage.setItem('token', data.token);
+            navigate('/dashboard'); // 로그인 성공 → 대시보드 이동
+        } catch (err) {
+            setError(err.message);
+        }
+    };
 
     return (
         <AuthLayout logoType="login">
-            <Box component="form" noValidate sx={{ mt: 3 }}>
+            <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 3 }}>
                 <TextField
                     margin="normal"
                     required
@@ -18,6 +48,8 @@ function LoginPage() {
                     name="email"
                     autoComplete="email"
                     autoFocus
+                    value={form.email}
+                    onChange={handleChange}
                     sx={{
                         '& .MuiOutlinedInput-root': {
                             borderRadius: '12px',
@@ -33,12 +65,22 @@ function LoginPage() {
                     type="password"
                     id="password"
                     autoComplete="current-password"
+                    value={form.password}
+                    onChange={handleChange}
                     sx={{
                         '& .MuiOutlinedInput-root': {
                             borderRadius: '12px',
                         },
                     }}
                 />
+
+                {/* ❗에러 메시지 표시 */}
+                {error && (
+                    <Alert severity="error" sx={{ mt: 2, borderRadius: '12px' }}>
+                        {error}
+                    </Alert>
+                )}
+
                 <Button
                     type="submit"
                     fullWidth

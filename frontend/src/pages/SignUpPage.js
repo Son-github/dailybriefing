@@ -1,14 +1,45 @@
-import React from 'react';
-import { Box, Typography, TextField, Button, Link } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Typography, TextField, Button, Link, Alert } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import AuthLayout from '../components/AuthLayout'; // 레이아웃 import
+import AuthLayout from '../components/AuthLayout';
 
 function SignUpPage() {
+    const [form, setForm] = useState({ name: '', email: '' });
+    const [error, setError] = useState('');
     const themeColor = '#f76d57';
+
+    const handleChange = (e) => {
+        setForm({
+            ...form,
+            [e.target.name]: e.target.value
+        });
+        setError(''); // 사용자가 입력을 바꿀 경우 에러 초기화
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch('http://localhost:8081/api/auth/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(form)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || '회원가입 실패');
+            }
+
+            alert('회원가입 성공! 로그인 페이지로 이동합니다.');
+            window.location.href = '/login';
+        } catch (error) {
+            setError(error.message);
+        }
+    };
 
     return (
         <AuthLayout logoType="signup">
-            <Box component="form" noValidate sx={{ mt: 1 }}>
+            <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
                 <TextField
                     margin="normal"
                     required
@@ -18,6 +49,8 @@ function SignUpPage() {
                     name="name"
                     autoComplete="name"
                     autoFocus
+                    value={form.name}
+                    onChange={handleChange}
                     sx={{
                         '& .MuiOutlinedInput-root': {
                             borderRadius: '12px',
@@ -32,40 +65,22 @@ function SignUpPage() {
                     label="Email"
                     name="email"
                     autoComplete="email"
+                    value={form.email}
+                    onChange={handleChange}
                     sx={{
                         '& .MuiOutlinedInput-root': {
                             borderRadius: '12px',
                         },
                     }}
                 />
-                <TextField
-                    margin="normal"
-                    required
-                    fullWidth
-                    id="phone"
-                    label="Phone number"
-                    name="phone"
-                    autoComplete="tel"
-                    sx={{
-                        '& .MuiOutlinedInput-root': {
-                            borderRadius: '12px',
-                        },
-                    }}
-                />
-                <TextField
-                    margin="normal"
-                    required
-                    fullWidth
-                    id="location"
-                    label="Location"
-                    name="location"
-                    autoComplete="address"
-                    sx={{
-                        '& .MuiOutlinedInput-root': {
-                            borderRadius: '12px',
-                        },
-                    }}
-                />
+
+                {/* 🔻 에러 메시지 표시 */}
+                {error && (
+                    <Alert severity="error" sx={{ mt: 2, borderRadius: '12px' }}>
+                        {error}
+                    </Alert>
+                )}
+
                 <Button
                     type="submit"
                     fullWidth
@@ -87,7 +102,12 @@ function SignUpPage() {
                 <Box sx={{ textAlign: 'center' }}>
                     <Typography variant="body2" color="text.secondary">
                         Already have an account?{' '}
-                        <Link component={RouterLink} to="/login" variant="body2" sx={{ fontWeight: 'bold', color: 'text.primary', textDecoration: 'none' }}>
+                        <Link
+                            component={RouterLink}
+                            to="/login"
+                            variant="body2"
+                            sx={{ fontWeight: 'bold', color: 'text.primary', textDecoration: 'none' }}
+                        >
                             Log in
                         </Link>
                     </Typography>
@@ -98,3 +118,4 @@ function SignUpPage() {
 }
 
 export default SignUpPage;
+

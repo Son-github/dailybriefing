@@ -1,11 +1,12 @@
-import React from 'react';
-import { Box, Container, Stack } from '@mui/material';
-
-// 1. Dashboard 페이지에서만 사용할 Header를 여기서 가져옵니다.
+import React, { useEffect, useState } from 'react';
+import { Box, Container, Stack, Button, Typography } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import InfoCard from '../components/InfoCard';
 import WeatherCard from '../components/WeatherCard';
 import NewsCard from '../components/NewsCard';
+import jwtDecode from 'jwt-decode';
+import axios from 'axios';
 
 // KOSDAQ, NASDAQ 차트에 사용할 샘플 데이터
 const kosdaqData = [
@@ -29,20 +30,80 @@ const nasdaqData = [
 ];
 
 
+
 function Dashboard() {
+    const navigate = useNavigate();
+    const [userEmail, setUserEmail] = useState('');
+
+    const refreshAccessToken = async () => {
+        try {
+            const res = await axios.post('http://localhost:8081/api/auth/refresh');
+            const { token } = res.data;
+            localStorage.setItem('token', token);
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            const decoded = jwtDecode(token);
+            setUserEmail(decoded.email || '');
+        } catch (err) {
+            console.error('리프레시 실패:', err);
+            handleLogout();
+        }
+    };
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            try {
+                const decoded = jwtDecode(token);
+                const now = Date.now() / 1000;
+                if (decoded.exp < now) {
+                    refreshAccessToken();
+                } else {
+                    setUserEmail(decoded.email || '');
+                }
+            } catch (e) {
+                console.error('Invalid token:', e);
+                handleLogout();
+            }
+        }
+    }, []);
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        delete axios.defaults.headers.common['Authorization'];
+        alert('로그아웃 되었습니다.');
+        navigate('/login');
+    };
+
     return (
-        // 2. App.js에서 옮겨온 배경색상, 패딩 등 레이아웃 Box를 추가합니다.
         <Box sx={{ bgcolor: '#f7f7f7', minHeight: '100vh', pb: 4 }}>
-            {/* 3. Header 컴포넌트를 Dashboard 페이지의 최상단에 렌더링합니다. */}
             <Header />
 
-            <Container maxWidth="sm" sx={{ mt: 2 }}>
+            <Box sx={{ position: 'absolute', top: 20, right: 20, textAlign: 'right' }}>
+                <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1, mr: 1 }}>
+                    {userEmail ? `${userEmail} 님` : ''}
+                </Typography>
+                <Button
+                    variant="outlined"
+                    onClick={handleLogout}
+                    sx={{
+                        borderRadius: '8px',
+                        color: '#f76d57',
+                        borderColor: '#f76d57',
+                        fontWeight: 'bold',
+                        '&:hover': {
+                            backgroundColor: '#f76d57',
+                            color: '#fff',
+                        }
+                    }}
+                >
+                    로그아웃
+                </Button>
+            </Box>
+
+            <Container maxWidth="sm" sx={{ mt: 10 }}>
                 <Stack spacing={2}>
-                    {/* 날씨 카드 */}
                     <WeatherCard />
-                    {/* 뉴스 카드 */}
                     <NewsCard />
-                    {/* 환율 카드 */}
                     <InfoCard
                         iconType="PriceChangeIcon"
                         iconColor="blue"
@@ -52,7 +113,6 @@ function Dashboard() {
                         changeValue="-5.50"
                         changeColor="red"
                     />
-                    {/* 코스닥 카드 */}
                     <InfoCard
                         iconType="ShowChart"
                         iconColor="blue"
@@ -64,7 +124,6 @@ function Dashboard() {
                         chartData={kosdaqData}
                         chartColor="#2196f3"
                     />
-                    {/* 나스닥 카드 */}
                     <InfoCard
                         iconType="ShowChart"
                         iconColor="red"
