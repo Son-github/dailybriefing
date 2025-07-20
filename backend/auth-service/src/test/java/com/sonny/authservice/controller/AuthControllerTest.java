@@ -3,8 +3,6 @@ package com.sonny.authservice.controller;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sonny.authservice.dto.UserLoginRequest;
-import com.sonny.authservice.dto.UserSignupRequest;
 import com.sonny.authservice.service.AuthService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -4,7 +4,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
 
 function SignUpPage() {
-    const [form, setForm] = useState({ name: '', email: '' });
+    const [form, setForm] = useState({ email: '', password: '' });
     const [error, setError] = useState('');
     const themeColor = '#f76d57';
 
@@ -13,7 +13,7 @@ function SignUpPage() {
             ...form,
             [e.target.name]: e.target.value
         });
-        setError(''); // 사용자가 입력을 바꿀 경우 에러 초기화
+        setError('');
     };
 
     const handleSubmit = async (e) => {
@@ -26,8 +26,8 @@ function SignUpPage() {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || '회원가입 실패');
+                const errorMessage = await response.text();
+                throw new Error(errorMessage || '회원가입 실패');
             }
 
             alert('회원가입 성공! 로그인 페이지로 이동합니다.');
@@ -44,37 +44,29 @@ function SignUpPage() {
                     margin="normal"
                     required
                     fullWidth
-                    id="name"
-                    label="Name"
-                    name="name"
-                    autoComplete="name"
+                    id="email"
+                    label="Email"
+                    name="email"
+                    autoComplete="email"
                     autoFocus
-                    value={form.name}
+                    value={form.email}
                     onChange={handleChange}
-                    sx={{
-                        '& .MuiOutlinedInput-root': {
-                            borderRadius: '12px',
-                        },
-                    }}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
                 />
                 <TextField
                     margin="normal"
                     required
                     fullWidth
-                    id="email"
-                    label="Email"
-                    name="email"
-                    autoComplete="email"
-                    value={form.email}
+                    id="password"
+                    label="Password"
+                    name="password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={form.password}
                     onChange={handleChange}
-                    sx={{
-                        '& .MuiOutlinedInput-root': {
-                            borderRadius: '12px',
-                        },
-                    }}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
                 />
 
-                {/* 🔻 에러 메시지 표시 */}
                 {error && (
                     <Alert severity="error" sx={{ mt: 2, borderRadius: '12px' }}>
                         {error}
@@ -92,13 +84,12 @@ function SignUpPage() {
                         py: 1.5,
                         backgroundColor: themeColor,
                         borderRadius: '12px',
-                        '&:hover': {
-                            backgroundColor: '#e55a44',
-                        }
+                        '&:hover': { backgroundColor: '#e55a44' }
                     }}
                 >
                     <Typography sx={{ fontWeight: 'bold' }}>Sign up</Typography>
                 </Button>
+
                 <Box sx={{ textAlign: 'center' }}>
                     <Typography variant="body2" color="text.secondary">
                         Already have an account?{' '}
@@ -118,4 +109,5 @@ function SignUpPage() {
 }
 
 export default SignUpPage;
+
 

@@ -8,14 +8,16 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
-@Entity
-@EntityListeners(AuditingEntityListener.class)
-@Table(name = "users")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Entity
+@EntityListeners(AuditingEntityListener.class)
+@Table(name = "users")
+@ToString(exclude = {"password", "refreshToken"}) // ✅ 혹시 모를 순환 방지
+@EqualsAndHashCode(of = "id") // ✅ 안전한 필드로만 비교
 public class User {
 
     @Id

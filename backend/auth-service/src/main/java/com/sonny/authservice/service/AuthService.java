@@ -1,50 +1,54 @@
 package com.sonny.authservice.service;
 
 import com.sonny.authservice.domain.User;
-import com.sonny.authservice.dto.UserLoginRequest;
-import com.sonny.authservice.dto.UserSignupRequest;
 import com.sonny.authservice.repository.UserRepository;
-import com.sonny.authservice.security.JwtTokenProvider;
+import com.sonny.authservice.config.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final JwtTokenProvider tokenProvider;
 
-    public void signup(UserSignupRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            log.info("이미 존재하는 이메일입니다.");
-            throw new UsernameNotFoundException("이미 존재하는 이메일입니다.");
+    public void signup(String email, String rawPassword) {
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("이미 가입된 이메일입니다.");
         }
-
         User user = User.builder()
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
+                .email(email)
+                .password(passwordEncoder.encode(rawPassword))
                 .build();
-
         userRepository.save(user);
-        log.info("{} 저장 완료!", user.getEmail());
     }
 
-    public String login(UserLoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new UsernameNotFoundException("존재하지 않는 사용자입니다."));
+    public String generateAccessToken(String email) {
+        return tokenProvider.generateAccessToken(email);
+    }
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않습니다.");
-        }
+    public String generateRefreshToken(String email) {
+        return tokenProvider.generateRefreshToken(email);
+    }
 
-        return jwtTokenProvider.generateToken(user.getEmail());
+    public void saveRefreshToken(String email, String refreshToken) {
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setRefreshToken(refreshToken);
+        userRepository.save(user);
+    }
+
+    public boolean isValidRefreshToken(String token) {
+        if (!tokenProvider.validateToken(token)) return false;
+        String email = tokenProvider.getEmailFromToken(token);
+        User user = userRepository.findByEmail(email).orElse(null);
+        return user != null && token.equals(user.getRefreshToken());
+    }
+
+    public String extractEmailFromToken(String token) {
+        return tokenProvider.getEmailFromToken(token);
     }
 }
+

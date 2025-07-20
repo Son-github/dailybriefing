@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Box, Typography, TextField, Button, Link, Alert } from '@mui/material';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Box, TextField, Button, Typography, Alert, Link } from '@mui/material';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
 
 function LoginPage() {
     const [form, setForm] = useState({ email: '', password: '' });
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
     const themeColor = '#f76d57';
 
@@ -16,25 +17,46 @@ function LoginPage() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setLoading(true);
+        setError('');
         try {
             const response = await fetch('http://localhost:8081/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(form)
+                credentials: 'include',
+                body: JSON.stringify(form),
             });
 
+            console.log('Fetch status:', response.status);
+            console.log('response:', response);
+
+            // 응답이 JSON인지 확인!
+            let data;
+            try {
+                data = await response.json();
+            } catch {
+                throw new Error('서버에서 올바른 JSON이 내려오지 않았습니다.');
+            }
+            console.log('Fetch data:', data);
+
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || '로그인 실패');
+                throw new Error(data.message || data.error || '로그인 실패');
             }
 
-            const data = await response.json();
-            localStorage.setItem('token', data.token);
-            navigate('/dashboard'); // 로그인 성공 → 대시보드 이동
+            if (!data.accessToken) {
+                throw new Error('accessToken 없음 (응답 구조 확인 필요)');
+            }
+
+            localStorage.setItem('token', data.accessToken);
+            navigate('/dashboard');
         } catch (err) {
-            setError(err.message);
+            setError(err.message || '네트워크 오류');
+        } finally {
+            setLoading(false);
         }
     };
+
+
 
     return (
         <AuthLayout logoType="login">
@@ -50,6 +72,7 @@ function LoginPage() {
                     autoFocus
                     value={form.email}
                     onChange={handleChange}
+                    disabled={loading}
                     sx={{
                         '& .MuiOutlinedInput-root': {
                             borderRadius: '12px',
@@ -67,6 +90,7 @@ function LoginPage() {
                     autoComplete="current-password"
                     value={form.password}
                     onChange={handleChange}
+                    disabled={loading}
                     sx={{
                         '& .MuiOutlinedInput-root': {
                             borderRadius: '12px',
@@ -74,7 +98,6 @@ function LoginPage() {
                     }}
                 />
 
-                {/* ❗에러 메시지 표시 */}
                 {error && (
                     <Alert severity="error" sx={{ mt: 2, borderRadius: '12px' }}>
                         {error}
@@ -86,6 +109,7 @@ function LoginPage() {
                     fullWidth
                     variant="contained"
                     disableElevation
+                    disabled={loading}
                     sx={{
                         mt: 3,
                         mb: 2,
@@ -97,8 +121,11 @@ function LoginPage() {
                         }
                     }}
                 >
-                    <Typography sx={{ fontWeight: 'bold' }}>Log in</Typography>
+                    <Typography sx={{ fontWeight: 'bold' }}>
+                        {loading ? 'Logging in...' : 'Log in'}
+                    </Typography>
                 </Button>
+
                 <Box sx={{ textAlign: 'center' }}>
                     <Typography variant="body2" color="text.secondary">
                         Don't have an account?{' '}
@@ -113,3 +140,4 @@ function LoginPage() {
 }
 
 export default LoginPage;
+
