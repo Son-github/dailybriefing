@@ -4,13 +4,11 @@ import lombok.*;
 
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class AuthResponse {
     private String accessToken;
     private String tokenType;
     private String message;
 }
-
-

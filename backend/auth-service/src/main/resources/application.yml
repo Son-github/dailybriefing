@@ -24,12 +24,18 @@ spring:
 
   jwt:
     secret: ${JWT_SECRET}
-    expiration: ${JWT_EXPIRATION_MS} # 밀리초 단위, 15분
 
 logging:
   level:
     org.hibernate.SQL: debug
     org.hibernate.type.descriptor.sql: trace
     org.springframework.security: info
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
 
 

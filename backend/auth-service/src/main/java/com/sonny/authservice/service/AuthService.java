@@ -35,7 +35,8 @@ public class AuthService {
     }
 
     public void saveRefreshToken(String email, String refreshToken) {
-        User user = userRepository.findByEmail(email).orElseThrow();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("이메일 없음"));
         user.setRefreshToken(refreshToken);
         userRepository.save(user);
     }
@@ -51,4 +52,6 @@ public class AuthService {
         return tokenProvider.getEmailFromToken(token);
     }
 }
+
+
 

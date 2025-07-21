@@ -16,8 +16,7 @@ import java.time.LocalDateTime;
 @Entity
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "users")
-@ToString(exclude = {"password", "refreshToken"}) // ✅ 혹시 모를 순환 방지
-@EqualsAndHashCode(of = "id") // ✅ 안전한 필드로만 비교
+@ToString(exclude = {"password", "refreshToken"})
 public class User {
 
     @Id
@@ -31,12 +30,12 @@ public class User {
     private String password;
 
     @Column(length = 512)
-    private String refreshToken; // ✅ 새로 추가
+    private String refreshToken;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @LastModifiedDate
-    private LocalDateTime updatedAt; // ✅ 새로 추가
+    private LocalDateTime updatedAt;
 }
