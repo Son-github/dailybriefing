@@ -26,7 +26,8 @@ function App() {
         <BrowserRouter>
             <CssBaseline />
             <Routes>
-                <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+                <Route path="/" element={<Navigate to="/dashboard" replace />} /> {/* 홈은 대시보드로 리디렉트 */}
+                <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
                 <Route path="/signup" element={<SignUpPage />} />
                 <Route path="/login" element={<LoginPage />} />
             </Routes>
