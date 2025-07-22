@@ -15,6 +15,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.net.URI;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -41,30 +43,28 @@ public class ExchangeRateService {
     }
 
     private ExchangeRateDto fetchAndSave(LocalDate date) {
-        log.info("외부 API 호출 시작");
+        log.info("💱 외부 API에서 환율 조회 시도: {}", date);
 
-        URI finalUri = UriComponentsBuilder.fromUriString(apiUrl)
-                .queryParam("authkey", serviceKey)
-                .queryParam("data", "AP01")
-                .build()
-                .toUri();
+        List<ExchangeResponseDto> response = fetchRateFromApi(date);
 
-        log.info("📡 최종 요청 URI: {}", finalUri);
+        // 🔁 오늘자 데이터가 없으면 전날로 fallback
+        if (response == null || response.isEmpty()) {
+            log.warn("❗ 오늘({}) 환율 데이터 없음, 전날로 재시도", date);
+            LocalDate yesterday = date.minusDays(1);
+            response = fetchRateFromApi(yesterday);
 
-        List<ExchangeResponseDto> response = webClient.get()
-                .uri(finalUri)
-                .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<List<ExchangeResponseDto>>() {})
-                .block();
+            if (response == null || response.isEmpty()) {
+                throw new RuntimeException("오늘 및 전날 환율 데이터 없음");
+            }
 
-
-        log.info("외부 API 결과: {}", response);
+            date = yesterday;
+        }
 
         ExchangeResponseDto usd = response.stream()
                 .filter(dto -> "USD".equalsIgnoreCase(dto.getCurrencyUnit()))
                 .findFirst()
                 .orElseThrow(() -> {
-                    log.error("usd 환율 데이터 찾을 수 없음");
+                    log.error("USD 환율 데이터 없음");
                     return new RuntimeException("USD 환율 없음");
                 });
 
@@ -79,8 +79,30 @@ public class ExchangeRateService {
                 .build();
 
         repository.save(entity);
-
         return convertToDto(entity);
+    }
+
+    private List<ExchangeResponseDto> fetchRateFromApi(LocalDate date) {
+        URI uri = UriComponentsBuilder
+                .fromHttpUrl("https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON")
+                .queryParam("authkey", serviceKey)
+                .queryParam("searchdate", date.format(DateTimeFormatter.ofPattern("yyyyMMdd")))
+                .queryParam("data", "AP01")
+                .build(true)
+                .toUri();
+
+        log.info("📡 환율 API 호출 URI: {}", uri);
+
+        try {
+            return webClient.get()
+                    .uri(uri)
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<List<ExchangeResponseDto>>() {})
+                    .block();
+        } catch (Exception e) {
+            log.error("API 호출 실패: {}", e.getMessage());
+            return Collections.emptyList(); // 또는 null
+        }
     }
 
     private ExchangeRateDto convertToDto(ExchangeRate e) {

@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Box, Container, Stack, Button, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import InfoCard from '../components/InfoCard';
 import WeatherCard from '../components/WeatherCard';
 import NewsCard from '../components/NewsCard';
 import { jwtDecode } from 'jwt-decode';
 import axios from 'axios';
+import ExchangeCard from "../components/ExchangeCard";
 
 // ... (kosdaqData, nasdaqData는 생략) ...
 
@@ -67,32 +67,10 @@ function Dashboard() {
     return (
         <Box sx={{ bgcolor: '#f7f7f7', minHeight: '100vh', pb: 4 }}>
             <Header />
-
-            <Box sx={{ position: 'absolute', top: 20, right: 20, textAlign: 'right' }}>
-                <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1, mr: 1 }}>
-                    {userEmail ? `${userEmail} 님` : ''}
-                </Typography>
-                <Button
-                    variant="outlined"
-                    onClick={handleLogout}
-                    sx={{
-                        borderRadius: '8px',
-                        color: '#f76d57',
-                        borderColor: '#f76d57',
-                        fontWeight: 'bold',
-                        '&:hover': {
-                            backgroundColor: '#f76d57',
-                            color: '#fff',
-                        }
-                    }}
-                >
-                    로그아웃
-                </Button>
-            </Box>
-
             <Container maxWidth="sm" sx={{ mt: 10 }}>
                 <Stack spacing={2}>
                     <WeatherCard />
+                    <ExchangeCard />
                     <NewsCard />
                     {/* InfoCard, 차트 데이터 등 기존 코드와 동일 */}
                 </Stack>

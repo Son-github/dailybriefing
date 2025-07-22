@@ -32,6 +32,24 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION_NS=${JWT_EXPIRATION_MS}
 
+  exchange-service:
+    build:
+      context: ./backend/exchange-service
+    container_name: exchange-service
+    ports:
+      - "8082:8082"
+    networks:
+      - backend-net
+    depends_on:
+      - postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - EXCHANGE_API_KEY=${EXCHANGE_API_KEY}
+
 #  weather-service:
 #    build:
 #      context: ./backend/weather-service
@@ -48,25 +66,8 @@ services:
 #      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 #      - POSTGRES_HOST=postgres
 #      - POSTGRES_PORT=5432
-#      - WEATHER_API_KEY=${WEATHER_API_KEY}
 
-#  exchange-service:
-#    build:
-#      context: ./backend/exchange-service
-#    container_name: exchange-service
-#    ports:
-#      - "8082:8082"
-#    networks:
-#      - backend-net
-#    depends_on:
-#      - postgres
-#    environment:
-#      - POSTGRES_DB=${POSTGRES_DB}
-#      - POSTGRES_USER=${POSTGRES_USER}
-#      - POSTGRES_PASSWORD=password
-#      - POSTGRES_HOST=postgres
-#      - POSTGRES_PORT=5432
-#      - EXCHANGE_API_KEY=${EXCHANGE_API_KEY}
+#      - WEATHER_API_KEY=${WEATHER_API_KEY}
 
   frontend:
     build:
@@ -78,8 +79,8 @@ services:
       - backend-net
     depends_on:
       - auth-service
+      - exchange-service
 #      - weather-service
-#      - exchange-service
 
 networks:
   backend-net:
