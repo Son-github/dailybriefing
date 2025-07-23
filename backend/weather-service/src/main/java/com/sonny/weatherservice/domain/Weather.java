@@ -2,31 +2,17 @@ package com.sonny.weatherservice.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.GenericGenerator;
-
-import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Getter
-@Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
-@NoArgsConstructor
 @Builder
 public class Weather {
-
-    @Id
-    @GeneratedValue(generator = "UUID")
-    @GenericGenerator(
-            name = "UUID",
-            strategy = "org.hibernate.id.UUIDGenerator"
-    )
-    @Column(name = "id", updatable = false, nullable = false)
-    private UUID id;
-
-    private String location;
-    private double temperature;
-    private String rainType; // sky -> rainType 으로 변경
-    private int humidity;
-    private LocalDateTime updateAt;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private String fcstDate;   // yyyyMMdd
+    private String fcstTime;   // HHmm
+    private String category;   // TMP 등
+    private String value;      // 예보값
 }

@@ -1,36 +1,31 @@
 package com.sonny.weatherservice.controller;
 
-import com.sonny.weatherservice.dto.WeatherResponseDto;
+import com.sonny.weatherservice.domain.Weather;
 import com.sonny.weatherservice.service.WeatherService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
+@Tag(name = "Weather", description = "서울(종로구) 오늘/전날 날씨 저장·조회 (파라미터 필요 없음)")
 @RestController
-@RequestMapping("/api/weather")
-@Tag(name = "Weather API", description = "날씨 가져오는 API")
 @RequiredArgsConstructor
+@RequestMapping("/api/weather")
 public class WeatherController {
 
     private final WeatherService weatherService;
 
-    @Operation(
-            summary = "서울 날씨 조회 및 저장",
-            description = "기상청 API로부터 최신 서울(중구) 날씨를 조회",
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "정상적으로 조회됨"),
-                    @ApiResponse(responseCode = "500", description = "서버 오류")
-            }
-    )
+    @Operation(summary = "오늘 서울날씨 저장(없으면 전날)", description = "파라미터 없이 호출하면 됨")
+    @PostMapping("/seoul")
+    public List<Weather> fetchAndSaveSeoulAuto() {
+        return weatherService.fetchAndSaveSeoulWeatherAuto();
+    }
+
+    @Operation(summary = "DB에서 오늘(없으면 전날) 서울날씨 조회", description = "파라미터 없이 호출하면 됨")
     @GetMapping("/seoul")
-    public ResponseEntity<WeatherResponseDto> getSeoulWeather() {
-        WeatherResponseDto result = weatherService.fetchAndSaveSeoulWeather();
-        return ResponseEntity.ok(result);
+    public List<Weather> getSeoulTodayOrYesterday() {
+        return weatherService.getSeoulWeatherTodayOrYesterday();
     }
 }
