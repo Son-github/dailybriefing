@@ -3,13 +3,13 @@ package com.sonny.weatherservice.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sonny.weatherservice.domain.Weather;
 import com.sonny.weatherservice.dto.UltraSrtFcstResponse;
+import com.sonny.weatherservice.dto.WeatherViewDto;
 import com.sonny.weatherservice.repository.WeatherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -27,104 +27,108 @@ public class WeatherService {
     @Value("${external.weather.service-key}")
     private String apiKey;
 
-    // 서울 종로구 고정
     private static final String NX = "60";
     private static final String NY = "127";
+    private final WebClient webClient = WebClient.create();
 
-    private final WebClient webClient = WebClient.builder()
-            .baseUrl("http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0")
-            .build();
-
-    // 오늘→없으면 전날 자동 저장
-    public List<Weather> fetchAndSaveSeoulWeatherAuto() {
+    /** 1. 실시간 조회만 (저장 X) */
+    public List<WeatherViewDto> fetchSeoulWeatherOnly() {
         String today = getToday();
         String baseTime = getLatestBaseTime();
-
-        List<Weather> result = fetchAndSave(today, baseTime);
-        if (result.isEmpty()) {
-            String yesterday = getYesterday();
-            result = fetchAndSave(yesterday, baseTime);
-        }
-        return result;
+        return fetchWeatherFromApi(today, baseTime).stream()
+                .map(i -> WeatherViewDto.builder()
+                        .fcstDate(i.getFcstDate())
+                        .fcstTime(i.getFcstTime())
+                        .category(i.getCategory())
+                        .value(i.getFcstValue())
+                        .build())
+                .collect(Collectors.toList());
     }
 
-    // 오늘→없으면 전날 자동 조회
-    public List<Weather> getSeoulWeatherTodayOrYesterday() {
+    /** 2. 조회 후 DB저장 */
+    public List<Weather> fetchAndSaveSeoulWeather() {
         String today = getToday();
-        List<Weather> result = weatherRepository.findByFcstDate(today);
-        if (result.isEmpty()) {
-            String yesterday = getYesterday();
-            result = weatherRepository.findByFcstDate(yesterday);
-        }
-        return result;
+        String baseTime = getLatestBaseTime();
+        List<UltraSrtFcstResponse.Item> items = fetchWeatherFromApi(today, baseTime);
+        List<Weather> weathers = items.stream()
+                .map(i -> Weather.builder()
+                        .fcstDate(i.getFcstDate())
+                        .fcstTime(i.getFcstTime())
+                        .category(i.getCategory())
+                        .value(i.getFcstValue())
+                        .build())
+                .collect(Collectors.toList());
+        weatherRepository.saveAll(weathers);
+        return weathers;
     }
 
-    // 기상청 base_time: 30분 단위, 여기선 "직전 30분 단위"
+    private List<UltraSrtFcstResponse.Item> fetchWeatherFromApi(String baseDate, String baseTime) {
+        String url = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst"
+                + "?serviceKey=" + apiKey
+                + "&numOfRows=60&pageNo=1&dataType=JSON"
+                + "&base_date=" + baseDate
+                + "&base_time=" + baseTime
+                + "&nx=" + NX
+                + "&ny=" + NY;
+
+        log.info("요청 URL: {}", url);
+
+        // 1. API 호출 + 상태코드 검사
+        String response;
+        int statusCode;
+        try {
+            var clientResponse = webClient.get()
+                    .uri(url)
+                    .exchangeToMono(res -> res.bodyToMono(String.class)
+                            .map(body -> new java.util.AbstractMap.SimpleEntry<>(res.statusCode().value(), body)))
+                    .block();
+
+            statusCode = clientResponse.getKey();
+            response = clientResponse.getValue();
+        } catch (Exception e) {
+            throw new RuntimeException("기상청 API 호출 중 네트워크 오류: " + e.getMessage(), e);
+        }
+
+        // 2. HTTP 상태 코드 확인
+        if (statusCode != 200) {
+            throw new RuntimeException("기상청 API 호출 실패: HTTP 상태 " + statusCode + "\n응답: " + response);
+        }
+
+        // 3. 응답이 JSON이 아닐 경우 방어 (HTML/XML)
+        if (response == null || response.isEmpty() || response.trim().startsWith("<")) {
+            throw new RuntimeException("기상청 API 호출 실패: JSON 응답 아님 (아마 파라미터 오류/인증 문제)\n응답: " + response);
+        }
+
+        // 4. JSON 파싱
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            UltraSrtFcstResponse parsed = mapper.readValue(response, UltraSrtFcstResponse.class);
+
+            // 5. 응답 구조 검증
+            if (parsed.getResponse() == null ||
+                    parsed.getResponse().getBody() == null ||
+                    parsed.getResponse().getBody().getItems() == null ||
+                    parsed.getResponse().getBody().getItems().getItem() == null) {
+                throw new RuntimeException("기상청 API 응답 구조가 올바르지 않음\n응답: " + response);
+            }
+
+            return parsed.getResponse().getBody().getItems().getItem();
+
+        } catch (Exception e) {
+            throw new RuntimeException("기상청 API 파싱 실패\n응답: " + response, e);
+        }
+    }
+
+    /** 날짜 & 시간 유틸 */
+    private String getToday() {
+        return LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+    }
     private String getLatestBaseTime() {
         LocalDateTime now = LocalDateTime.now();
         int hour = now.getHour();
         int minute = now.getMinute();
-
-        if (minute < 30) {
-            hour = hour - 1;
-            minute = 30;
-        } else {
-            minute = 0;
-        }
+        if (minute < 30) { hour = hour - 1; minute = 30; } else { minute = 0; }
         if (hour < 0) hour = 23;
-
         return String.format("%02d%02d", hour, minute);
     }
-
-    // 오늘 날짜 yyyyMMdd
-    private String getToday() {
-        return LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-    }
-
-    // 어제 날짜 yyyyMMdd
-    private String getYesterday() {
-        return LocalDate.now().minusDays(1).format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-    }
-
-    // 실제 API 호출/저장
-    private List<Weather> fetchAndSave(String baseDate, String baseTime) {
-        String apiUrl = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst";
-        String serviceKey = "wVTEulNe7szg24bFXQR97HNuuhLPsv7cyJrNUna3jrQ89YkWS5cm7%2FJvmv6Hbrq7sIYgIT0edqmbAf%2B8BQummQ%3D%3D";
-        String numOfRows = "100";
-        String pageNo = "1";
-        String nx = "55";
-        String ny = "127";
-
-// 문자열 포맷팅으로 직접 조립
-        String url = String.format(
-                "%s?serviceKey=%s&numOfRows=%s&pageNo=%s&base_date=%s&base_time=%s&nx=%s&ny=%s",
-                apiUrl, serviceKey, numOfRows, pageNo, baseDate, baseTime, nx, ny
-        );
-
-        log.info("최종 요청 URL: {}" + url); // 또는 log.info("...")
-
-        String json = webClient.get()
-                .uri(url)
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
-
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            UltraSrtFcstResponse resp = mapper.readValue(json, UltraSrtFcstResponse.class);
-            List<Weather> weathers = resp.getResponse().getBody().getItems().getItem().stream()
-                    .map(i -> Weather.builder()
-                            .fcstDate(i.getFcstDate())
-                            .fcstTime(i.getFcstTime())
-                            .category(i.getCategory())
-                            .value(i.getFcstValue())
-                            .build())
-                    .collect(Collectors.toList());
-            weatherRepository.saveAll(weathers);
-            return weathers;
-        } catch (Exception e) {
-            return List.of(); // 실패 시 빈 리스트
-        }
-    }
 }
-

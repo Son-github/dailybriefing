@@ -14,5 +14,5 @@ public class Weather {
     private String fcstDate;   // yyyyMMdd
     private String fcstTime;   // HHmm
     private String category;   // TMP 등
-    private String value;      // 예보값
+    private String value;      // 값
 }
