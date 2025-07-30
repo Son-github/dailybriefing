@@ -19,7 +19,9 @@ spring:
 
 external:
   weather:
-    service-key: ${WEATHER_API_KEY}
+    url: "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst"
+    service-key: "wVTEulNe7szg24bFXQR97HNuuhLPsv7cyJrNUna3jrQ89YkWS5cm7%2FJvmv6Hbrq7sIYgIT0edqmbAf%2B8BQummQ%3D%3D"
+#    service-key: ${WEATHER_API_KEY}
 
 logging:
   level:
