@@ -18,10 +18,10 @@ public class WeatherController {
 
     private final WeatherService weatherService;
 
-    @GetMapping("/fetch")
+    @GetMapping("/summary")
     @Operation(summary = "날씨 데이터 가져오기 및 저장", description = "공공데이터포털에서 날씨 데이터를 가져와 DB에 저장합니다.")
-    public Map<String, Object> fetchAndSaveWeather() {
-        return weatherService.getCurrentWeatherAsMap();
+    public Map<String, String> getWeatherSummary() {
+        return weatherService.getCurrentWeatherSummary();
     }
 }
 

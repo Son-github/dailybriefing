@@ -1,9 +1,9 @@
 package com.sonny.weatherservice.repository;
 
-import com.sonny.weatherservice.domain.Weather;
+import com.sonny.weatherservice.domain.WeatherFetchLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface WeatherRepository extends JpaRepository<Weather, Long> {
+public interface WeatherFetchLogRepository extends JpaRepository<WeatherFetchLog, Long> {
 }
