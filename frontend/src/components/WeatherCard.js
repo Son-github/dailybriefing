@@ -1,23 +1,40 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Typography, Box } from '@mui/material';
+import { Card, Typography } from '@mui/material';
 import WbSunnyIcon from '@mui/icons-material/WbSunny';
+import CloudIcon from '@mui/icons-material/Cloud';
+import GrainIcon from '@mui/icons-material/Grain';
 import axios from 'axios';
 
 function WeatherCard() {
     const location = "서울";
     const [temperature, setTemperature] = useState(null);
     const [weatherText, setWeatherText] = useState("");
+    const [icon, setIcon] = useState(<WbSunnyIcon sx={{ fontSize: 48, color: '#FFA726' }} />);
 
     useEffect(() => {
-        axios.get("http://localhost:8080/weather/fetch")
+        axios.get("http://localhost:8083/weather/summary")
             .then((res) => {
                 const data = res.data;
-                const temperatureData = data.response.body.items.item.find(item => item.category === "T1H");
-                setTemperature(temperatureData?.fcstValue || "-");
+                setTemperature(data.temperature || "-");
+                setWeatherText(data.sky || "알 수 없음");
 
-                const skyData = data.response.body.items.item.find(item => item.category === "SKY");
-                const skyMap = {1: "맑음", 3: "구름많음", 4: "흐림"};
-                setWeatherText(skyMap[skyData?.fcstValue] || "알 수 없음");
+                // 날씨 상태별 아이콘 변경
+                switch (data.sky) {
+                    case "맑음":
+                        setIcon(<WbSunnyIcon sx={{ fontSize: 48, color: '#FFA726' }} />);
+                        break;
+                    case "구름많음":
+                        setIcon(<CloudIcon sx={{ fontSize: 48, color: '#90A4AE' }} />);
+                        break;
+                    case "흐림":
+                        setIcon(<CloudIcon sx={{ fontSize: 48, color: '#607D8B' }} />);
+                        break;
+                    case "비":
+                        setIcon(<GrainIcon sx={{ fontSize: 48, color: '#42A5F5' }} />);
+                        break;
+                    default:
+                        setIcon(<WbSunnyIcon sx={{ fontSize: 48, color: '#FFA726' }} />);
+                }
             })
             .catch(err => console.error(err));
     }, []);
@@ -40,7 +57,7 @@ function WeatherCard() {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                 {location} 날씨
             </Typography>
-            <WbSunnyIcon sx={{ fontSize: 48, color: '#FFA726' }} />
+            {icon}
             <Typography variant="h4" fontWeight="bold">
                 {temperature ? `${temperature}°C` : "로딩중..."}
             </Typography>
@@ -52,7 +69,3 @@ function WeatherCard() {
 }
 
 export default WeatherCard;
-
-
-
-
