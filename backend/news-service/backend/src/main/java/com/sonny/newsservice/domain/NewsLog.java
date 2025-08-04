@@ -1,16 +1,12 @@
 package com.sonny.newsservice.domain;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Getter
-@Setter
+@Getter @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -20,6 +16,7 @@ public class NewsLog {
     private Long id;
 
     private String query;
+    @Column(columnDefinition = "TEXT")
     private String result;
     private String sentiment;
     private LocalDateTime createdAt;
