@@ -1,26 +1,33 @@
 package com.sonny.newsservice.util;
 
 import com.rometools.rome.feed.synd.SyndEntry;
+import com.rometools.rome.feed.synd.SyndFeed;
 import com.rometools.rome.io.SyndFeedInput;
 import com.rometools.rome.io.XmlReader;
+import com.sonny.newsservice.dto.NewsItem;
 
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class RssParser {
 
-    public static List<String> fetchNewsTitles(String feedUrl) {
-        try (XmlReader reader = new XmlReader(new URL(feedUrl))) {
-            var feed = new SyndFeedInput().build(reader);
-            return feed.getEntries().stream()
-                    .map(entry -> ((SyndEntry) entry).getTitle())
-                    .limit(10)
-                    .collect(Collectors.toList());
+    public static List<NewsItem> fetchNewsWithLinks(String rssUrl) {
+        List<NewsItem> newsItems = new ArrayList<>();
+        try {
+            URL url = new URL(rssUrl);
+            SyndFeedInput input = new SyndFeedInput();
+            SyndFeed feed = input.build(new XmlReader(url));
+
+            for (SyndEntry entry : feed.getEntries()) {
+                newsItems.add(new NewsItem(entry.getTitle(), entry.getLink(), null));
+            }
         } catch (Exception e) {
-            System.err.println("Rss 파싱 실패: " + e.getMessage());
-            return Collections.emptyList();
+            e.printStackTrace();
         }
+        return newsItems;
     }
+
 }
