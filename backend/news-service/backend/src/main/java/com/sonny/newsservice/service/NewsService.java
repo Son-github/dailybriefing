@@ -13,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,56 +30,44 @@ public class NewsService {
     private String pythonServiceUrl;
 
     public NewsResponse fetchNewsSummary() {
-        // 1. 뉴스 수집 (제목 + 링크)
         List<NewsItem> newsList = RssParser.fetchNewsWithLinks(rssUrl);
         if (newsList.isEmpty()) {
             return NewsResponse.builder()
-                    .topNews(List.of(new NewsItem("뉴스를 불러오지 못했습니다.", null, "Neutral")))
-                    .sentiment("Neutral")
+                    .topNews(List.of(new NewsItem("뉴스를 불러오지 못했습니다.", null, null, "Neutral")))
                     .build();
         }
 
-        // 2. KoBERT 감성 분석 요청
         List<NewsItem> analyzedNews = newsList;
         String overallSentiment = "Neutral";
         try {
             analyzedNews = webClientBuilder.build()
                     .post()
                     .uri(pythonServiceUrl + "/analyze-multiple")
-                    .bodyValue(newsList)
+                    .bodyValue(newsList) // 이제 title + content 함께 전송
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<List<NewsItem>>() {})
                     .block();
 
-            // 전체 뉴스 평균 감성 계산 (단순히 가장 많이 나온 감성으로)
             overallSentiment = analyzedNews.stream()
                     .collect(Collectors.groupingBy(NewsItem::getSentiment, Collectors.counting()))
                     .entrySet()
                     .stream()
                     .max((a, b) -> Long.compare(a.getValue(), b.getValue()))
-                    .map(e -> e.getKey())
+                    .map(Map.Entry::getKey)
                     .orElse("Neutral");
         } catch (Exception e) {
             System.err.println("감성분석 실패: " + e.getMessage());
         }
 
-        // 3. 로그 저장
-        try {
-            NewsLog log = NewsLog.builder()
-                    .query("google-news-top10")
-                    .result(String.join(",", analyzedNews.stream().map(NewsItem::getTitle).toList()))
-                    .sentiment(overallSentiment)
-                    .createdAt(LocalDateTime.now())
-                    .build();
-            repository.save(log);
-        } catch (Exception e) {
-            System.err.println("DB 저장 실패: " + e.getMessage());
-        }
+        repository.save(NewsLog.builder()
+                .query("google-news-top10")
+                .result(String.join(",", analyzedNews.stream().map(NewsItem::getTitle).toList()))
+                .sentiment(overallSentiment)
+                .createdAt(LocalDateTime.now())
+                .build());
 
-        // 4. 응답
         return NewsResponse.builder()
                 .topNews(analyzedNews)
-                .sentiment(overallSentiment)
                 .build();
     }
 }
