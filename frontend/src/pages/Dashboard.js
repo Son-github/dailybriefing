@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Container, Stack, Button, Typography } from '@mui/material';
+import { Box, Container, Stack } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import WeatherCard from '../components/WeatherCard';
@@ -8,13 +8,10 @@ import { jwtDecode } from 'jwt-decode';
 import axios from 'axios';
 import ExchangeCard from "../components/ExchangeCard";
 
-// ... (kosdaqData, nasdaqData는 생략) ...
-
 function Dashboard() {
     const navigate = useNavigate();
     const [userEmail, setUserEmail] = useState('');
 
-    // ✅ withCredentials: true로 쿠키 기반 refresh 요청
     const refreshAccessToken = async () => {
         try {
             const res = await axios.post(
@@ -22,7 +19,6 @@ function Dashboard() {
                 {},
                 { withCredentials: true }
             );
-            // ✅ 필드명 accessToken에 맞춰 처리
             const { accessToken } = res.data;
             localStorage.setItem('token', accessToken);
             axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
@@ -41,7 +37,6 @@ function Dashboard() {
                 const decoded = jwtDecode(token);
                 const now = Date.now() / 1000;
                 if (decoded.exp < now) {
-                    // 만료 시 자동 리프레시
                     refreshAccessToken();
                 } else {
                     setUserEmail(decoded.email || '');
@@ -51,7 +46,6 @@ function Dashboard() {
                 handleLogout();
             }
         } else {
-            // 토큰 없으면 로그인으로
             navigate('/login');
         }
         // eslint-disable-next-line
@@ -66,13 +60,13 @@ function Dashboard() {
 
     return (
         <Box sx={{ bgcolor: '#f7f7f7', minHeight: '100vh', pb: 4 }}>
-            <Header />
-            <Container maxWidth="sm" sx={{ mt: 10 }}>
+            {/* Header 패딩도 최소화 */}
+            <Header sx={{ padding: '8px 0' }} />
+            <Container maxWidth="sm" sx={{ mt: 1 }}> {/* marginTop을 거의 없앰 */}
                 <Stack spacing={2}>
                     <WeatherCard />
                     <ExchangeCard />
                     <NewsCard />
-                    {/* InfoCard, 차트 데이터 등 기존 코드와 동일 */}
                 </Stack>
             </Container>
         </Box>

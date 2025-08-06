@@ -4,27 +4,31 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 app = Flask(__name__)
 
-# 1) 모델/토크나이저 교체
-MODEL_NAME = "beomi/KcELECTRA-base-v2022"
+MODEL_NAME = "beomi/KcELECTRA-base-v2022-finetuned-sentiment"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSequenceClassification.from_pretrained(
-    MODEL_NAME,
-    num_labels=2  # 긍정/부정 2클래스
-)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
 model.eval()
 
-# 2) 라벨 매핑 (0=부정, 1=긍정)
-label_map = {0: "Negative", 1: "Positive"}
+id2label = model.config.id2label if hasattr(model.config, "id2label") else {0: "Negative", 1: "Positive", 2: "Neutral"}
 
-def predict_sentiment(text):
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=256)
-    with torch.no_grad():
-        outputs = model(**inputs)
-        logits = outputs.logits
-        prediction = torch.argmax(logits, dim=1).item()
-    return label_map[prediction]
+def predict_sentiment(text: str):
+    try:
+        inputs = tokenizer(
+            text[:512],
+            return_tensors="pt",
+            truncation=True,
+            padding=True,
+            max_length=256
+        )
+        with torch.no_grad():
+            outputs = model(**inputs)
+            logits = outputs.logits
+            prediction = torch.argmax(logits, dim=1).item()
+        return id2label.get(prediction, "Neutral")
+    except Exception:
+        return "Neutral"  # 오류 시 무조건 Neutral
 
-@app.route("/analyze/analyze-multiple", methods=["POST"])
+@app.route("/analyze-multiple", methods=["POST"])
 def analyze_multiple():
     news_list = request.get_json()
     results = []
@@ -32,12 +36,13 @@ def analyze_multiple():
         combined_text = (item.get('title') or '') + " " + (item.get('content') or '')
         sentiment = predict_sentiment(combined_text)
         results.append({
-            "title": item['title'],
-            "link": item['link'],
-            "sentiment": sentiment
+            "title": item.get('title') or "",
+            "link": item.get('link') or "",
+            "sentiment": sentiment or "Neutral"
         })
-    return jsonify(results)
+    # Spring DTO 구조와 일치: topNews 감싸기
+    return jsonify({ "topNews": results })
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=False)
 

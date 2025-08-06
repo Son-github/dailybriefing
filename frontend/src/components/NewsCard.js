@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, CardContent, Typography, Chip, Box } from '@mui/material';
+import { Card, CardContent, Typography, Chip, Box, CircularProgress } from '@mui/material';
 import axios from 'axios';
 
 function NewsCard() {
@@ -7,7 +7,7 @@ function NewsCard() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        axios.get("http://localhost:8084/news/fetch") // 백엔드 API 호출
+        axios.get("http://localhost:8084/news/fetch")
             .then((res) => {
                 setNewsList(res.data.topNews || []);
                 setLoading(false);
@@ -22,40 +22,48 @@ function NewsCard() {
     };
 
     return (
-        <Card sx={{ borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', p: 2, minHeight: 400 }}>
-            <CardContent>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2 }}>
+        <Card
+            sx={{
+                borderRadius: 6,
+                boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+                bgcolor: '#ffffff',
+                transition: 'transform 0.2s ease-in-out',
+                '&:hover': { transform: 'scale(1.02)' },
+                minHeight: 400,
+            }}
+        >
+            <CardContent
+                sx={{
+                    p: 4,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                }}
+            >
+                <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 'bold', mb: 3, textAlign: 'center' }}
+                >
                     오늘의 주요 뉴스
                 </Typography>
 
                 {loading ? (
-                    // 로딩 화면
                     <Box
                         sx={{
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            height: '300px',
-                            animation: 'fadeIn 0.3s ease-in-out',
+                            flex: 1,
+                            py: 5,
                         }}
                     >
-                        <Box
-                            sx={{
-                                width: 60,
-                                height: 60,
-                                border: '6px solid #e0e0e0',
-                                borderTop: '6px solid #1976d2',
-                                borderRadius: '50%',
-                                animation: 'spin 1s linear infinite',
-                                mb: 2,
-                            }}
-                        />
+                        <CircularProgress size={40} sx={{ mb: 2 }} />
                         <Typography variant="body1" sx={{ color: '#666' }}>
                             뉴스를 불러오는 중입니다...
                         </Typography>
                     </Box>
-                ) : (
+                ) : newsList.length > 0 ? (
                     newsList.map((news, index) => (
                         <Box
                             key={index}
@@ -64,11 +72,11 @@ function NewsCard() {
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
                                 mb: 1.5,
-                                p: 1.2,
-                                borderRadius: 2,
+                                p: 1.5,
+                                borderRadius: 3,
                                 backgroundColor: 'rgba(0,0,0,0.02)',
                                 '&:hover': { backgroundColor: 'rgba(0,0,0,0.05)' },
-                                transition: '0.2s'
+                                transition: '0.2s',
                             }}
                         >
                             <Typography
@@ -82,7 +90,7 @@ function NewsCard() {
                                     color: '#333',
                                     fontWeight: 500,
                                     flex: 1,
-                                    '&:hover': { color: '#1976d2' }
+                                    '&:hover': { color: '#1976d2' },
                                 }}
                             >
                                 {news.title}
@@ -95,24 +103,14 @@ function NewsCard() {
                             />
                         </Box>
                     ))
+                ) : (
+                    <Typography textAlign="center" color="text.secondary">
+                        현재 표시할 뉴스가 없습니다.
+                    </Typography>
                 )}
             </CardContent>
         </Card>
     );
 }
-
-// 로딩 애니메이션 추가
-const styles = document.createElement('style');
-styles.innerHTML = `
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-`;
-document.head.appendChild(styles);
 
 export default NewsCard;
