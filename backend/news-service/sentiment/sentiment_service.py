@@ -1,48 +1,87 @@
 from flask import Flask, request, jsonify
 import torch
+import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 app = Flask(__name__)
 
 MODEL_NAME = "beomi/KcELECTRA-base-v2022-finetuned-sentiment"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+# 모델 로드
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME).to(DEVICE)
 model.eval()
 
-id2label = model.config.id2label if hasattr(model.config, "id2label") else {0: "Negative", 1: "Positive", 2: "Neutral"}
+# 레이블 매핑
+if hasattr(model.config, "id2label") and model.config.id2label:
+    id2label = {int(k): v for k, v in model.config.id2label.items()}
+else:
+    id2label = {0: "Negative", 1: "Positive", 2: "Neutral"}
 
 def predict_sentiment(text: str):
-    try:
-        inputs = tokenizer(
-            text[:512],
-            return_tensors="pt",
-            truncation=True,
-            padding=True,
-            max_length=256
-        )
-        with torch.no_grad():
-            outputs = model(**inputs)
-            logits = outputs.logits
-            prediction = torch.argmax(logits, dim=1).item()
-        return id2label.get(prediction, "Neutral")
-    except Exception:
-        return "Neutral"  # 오류 시 무조건 Neutral
+    """감성 레이블과 확률 점수 반환"""
+    inputs = tokenizer(
+        text[:512],
+        return_tensors="pt",
+        truncation=True,
+        padding=True,
+        max_length=256
+    ).to(DEVICE)
 
-@app.route("/analyze-multiple", methods=["POST"])
-def analyze_multiple():
+    with torch.no_grad():
+        outputs = model(**inputs)
+        probs = F.softmax(outputs.logits, dim=1)
+        score, pred_id = torch.max(probs, dim=1)
+
+    sentiment = id2label.get(pred_id.item(), "Neutral")
+    return sentiment, float(score.item())
+
+@app.route("/analyze-news", methods=["POST"])
+def analyze_news():
+    """
+    JSON 예시:
+    {
+        "title": "삼성전자 주가 급등",
+        "content": "2분기 영업이익 50% 증가"
+    }
+    """
+    data = request.get_json()
+    title = (data.get("title") or "").strip()
+    content = (data.get("content") or "").strip()
+    text = f"{title} {content}"
+
+    sentiment, score = predict_sentiment(text)
+    return jsonify({
+        "title": title,
+        "sentiment": sentiment,
+        "score": round(score, 4)  # 소수점 4자리까지
+    })
+
+@app.route("/analyze-news-multiple", methods=["POST"])
+def analyze_news_multiple():
+    """
+    JSON 예시:
+    [
+        {"title": "삼성전자 주가 급등", "content": "2분기 영업이익 50% 증가"},
+        {"title": "태풍 피해로 농작물 전멸", "content": "농작물 전멸로 농민 피해 심각"}
+    ]
+    """
     news_list = request.get_json()
     results = []
+
     for item in news_list:
-        combined_text = (item.get('title') or '') + " " + (item.get('content') or '')
-        sentiment = predict_sentiment(combined_text)
+        title = (item.get("title") or "").strip()
+        content = (item.get("content") or "").strip()
+        text = f"{title} {content}"
+        sentiment, score = predict_sentiment(text)
         results.append({
-            "title": item.get('title') or "",
-            "link": item.get('link') or "",
-            "sentiment": sentiment or "Neutral"
+            "title": title,
+            "sentiment": sentiment,
+            "score": round(score, 4)
         })
-    # Spring DTO 구조와 일치: topNews 감싸기
-    return jsonify({ "topNews": results })
+
+    return jsonify({"results": results})
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
-
+    app.run(host="0.0.0.0", port=5000)

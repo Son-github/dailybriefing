@@ -1,4 +1,4 @@
-torch
-transformers
-kobert-transformers
-flask
+flask==3.0.3
+transformers==4.43.3
+torch>=2.2.0
+tokenizers>=0.15.0
