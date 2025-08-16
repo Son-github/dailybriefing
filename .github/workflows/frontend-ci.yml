@@ -33,3 +33,5 @@ jobs:
 
       - name: Done
         run: echo "✅ Frontend workflow connected successfully"
+    env:
+      CI: false
