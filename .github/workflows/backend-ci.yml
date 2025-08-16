@@ -1,0 +1,39 @@
+name: Backend CI (build only)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "backend/*-service/**"
+      - "!backend/news-service/sentiment/**"   # ✅ 파이썬 폴더 제외
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "backend/*-service/**"
+      - "!backend/news-service/sentiment/**"   # ✅ 파이썬 폴더 제외
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [ "auth-service", "exchange-service", "news-service", "weather-service" ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Gradle build
+        working-directory: backend/${{ matrix.service }}
+        run: |
+          ./gradlew --version || true
+          chmod +x gradlew || true
+          ./gradlew clean build -x test --no-daemon
+
+      - name: Done
+        run: echo "✅ Backend workflow connected for ${{ matrix.service }}"
