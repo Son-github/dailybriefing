@@ -5,12 +5,12 @@ on:
     branches: [ "main" ]
     paths:
       - "backend/*-service/**"
-      - "!backend/news-service/sentiment/**"   # ✅ 파이썬 폴더 제외
+      - "!backend/news-service/sentiment/**"
       - ".github/workflows/backend-ci.yml"
   pull_request:
     paths:
       - "backend/*-service/**"
-      - "!backend/news-service/sentiment/**"   # ✅ 파이썬 폴더 제외
+      - "!backend/news-service/sentiment/**"
 
 jobs:
   build:
@@ -18,6 +18,7 @@ jobs:
     strategy:
       matrix:
         service: [ "auth-service", "exchange-service", "news-service", "weather-service" ]
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,12 +29,11 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Gradle build
-        working-directory: backend/${{ matrix.service }}
+      # ✅ 루트 gradlew 사용(서비스 디렉토리에 gradlew 없어도 됨)
+      - name: Gradle build (root wrapper, per project)
         run: |
-          ./gradlew --version || true
-          chmod +x gradlew || true
-          ./gradlew clean build -x test --no-daemon
+          chmod +x ./gradlew || true
+          ./gradlew -p backend/${{ matrix.service }} clean build -x test --no-daemon
 
       - name: Done
         run: echo "✅ Backend workflow connected for ${{ matrix.service }}"
