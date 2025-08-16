@@ -18,7 +18,6 @@ jobs:
     strategy:
       matrix:
         service: [ "auth-service", "exchange-service", "news-service", "weather-service" ]
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,11 +28,15 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      # ✅ 루트 gradlew 사용(서비스 디렉토리에 gradlew 없어도 됨)
-      - name: Gradle build (root wrapper, per project)
+      # ✅ 랩퍼 없이도 reproducible 하게 Gradle 셋업
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 8.8
+
+      - name: Build (per service)
         run: |
-          chmod +x ./gradlew || true
-          ./gradlew -p backend/${{ matrix.service }} clean build -x test --no-daemon
+          gradle -p backend/${{ matrix.service }} clean build -x test --no-daemon
 
       - name: Done
         run: echo "✅ Backend workflow connected for ${{ matrix.service }}"
