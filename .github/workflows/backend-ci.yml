@@ -1,4 +1,4 @@
-name: Backend CI (build only)
+name: Backend CI/CD → ECR
 
 on:
   push:
@@ -12,8 +12,16 @@ on:
       - "backend/*-service/**"
       - "!backend/news-service/sentiment/**"
 
+env:
+  AWS_REGION: ap-northeast-2
+  PROJECT: dailybriefing
+
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -22,8 +30,7 @@ jobs:
             path: backend/auth-service
           - service: exchange-service
             path: backend/exchange-service
-          - service: news-service
-            # ✅ news-service의 실제 Gradle 루트
+          - service: news-service            # news-service의 Gradle 루트
             path: backend/news-service/backend
           - service: weather-service
             path: backend/weather-service
@@ -35,25 +42,43 @@ jobs:
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '21'
 
-      # gradle wrapper 없이도 동일 버전으로 빌드
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: 8.8
 
-      # (선택) 해당 경로에 build 파일 있는지 빠르게 검증
       - name: Sanity check for Gradle files
         run: |
-          ls -al ${{ matrix.path }}
-          test -f "${{ matrix.path }}/build.gradle" -o -f "${{ matrix.path }}/build.gradle.kts" || \
-          (echo "No build.gradle in ${{ matrix.path }}" && exit 1)
+          ls -al "${{ matrix.path }}"
+          test -f "${{ matrix.path }}/build.gradle" -o -f "${{ matrix.path }}/build.gradle.kts"
 
-      - name: Build (per service)
+      - name: Build (Gradle)
         run: |
           gradle -p "${{ matrix.path }}" clean build -x test --no-daemon
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.path }}
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Done
-        run: echo "✅ Backend workflow connected for ${{ matrix.service }}"
+        run: echo "✅ Pushed ${{ matrix.service }} to ECR"

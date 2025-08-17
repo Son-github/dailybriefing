@@ -16,6 +16,7 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,6 +33,29 @@ jobs:
         run: npm run build
 
       - name: Done
-        run: echo "✅ Frontend workflow connected successfully"
-    env:
-      CI: false
+        run: echo "✅ Frontend build succeeded"
+
+      # --- (옵션) Docker로 패키징해서 ECR 푸시 ---
+      # env:
+      #   AWS_REGION: ap-northeast-2
+      #   PROJECT: dailybriefing
+      #   SERVICE: frontend
+      # permissions:
+      #   id-token: write
+      #   contents: read
+      # - name: Configure AWS credentials (OIDC)
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_ARN }}
+      #     aws-region: ${{ env.AWS_REGION }}
+      # - name: Login to Amazon ECR
+      #   id: login-ecr
+      #   uses: aws-actions/amazon-ecr-login@v2
+      # - name: Build & Push Docker image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: ./frontend
+      #     push: true
+      #     tags: |
+      #       ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ env.SERVICE }}:${{ github.sha }}
+      #       ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ env.SERVICE }}:latest

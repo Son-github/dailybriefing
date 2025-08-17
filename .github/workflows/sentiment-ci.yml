@@ -1,4 +1,4 @@
-name: Sentiment CI (Python)
+name: Sentiment CI/CD → ECR (Python)
 
 on:
   push:
@@ -10,12 +10,22 @@ on:
     paths:
       - "backend/news-service/sentiment/**"
 
+env:
+  AWS_REGION: ap-northeast-2
+  PROJECT: dailybriefing
+  SERVICE: sentiment-service           # ← ECR 리포 이름과 일치
+
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
-  build-and-check:
+  build-and-push:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend/news-service/sentiment
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,23 +40,36 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 선택: 코드 품질 검사(있으면 좋음)
-      - name: Lint (flake8)
+      - name: Lint (optional)
         run: |
           pip install flake8 || true
           flake8 . || true
 
-      # 선택: 테스트(있으면 좋음)
-      - name: Test (pytest)
+      - name: Tests (optional)
         run: |
           pip install pytest || true
           pytest -q || true
 
-      # 최소 스모크 테스트: 실행만 되는지 확인(서비스 진입점 바꿔도 됨)
-      - name: Smoke run
-        run: |
-          python sentiment_service.py --help || true
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/news-service/sentiment
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ env.SERVICE }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ env.SERVICE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Done
-        run: echo "✅ Sentiment workflow connected successfully"
-
+        run: echo "✅ Pushed ${{ env.SERVICE }} to ECR"
