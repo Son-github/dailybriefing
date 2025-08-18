@@ -82,6 +82,7 @@ jobs:
       - name: Build & Push Docker image
         uses: docker/build-push-action@v5
         with:
+          builder: ${{ steps.buildx.outputs.name }}     # 선택(권장)
           context: ./${{ matrix.path }}
           push: true
           tags: |
