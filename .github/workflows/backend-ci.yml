@@ -17,7 +17,7 @@ env:
   PROJECT: dailybriefing
 
 permissions:
-  id-token: write
+  id-token: write  # for OIDC
   contents: read
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
             path: backend/auth-service
           - service: exchange-service
             path: backend/exchange-service
-          - service: news-service            # news-service의 Gradle 루트
+          - service: news-service
             path: backend/news-service/backend
           - service: weather-service
             path: backend/weather-service
@@ -45,20 +45,6 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Setup Gradle
-        uses: gradle/gradle-build-action@v2
-        with:
-          gradle-version: 8.8
-
-      - name: Sanity check for Gradle files
-        run: |
-          ls -al "${{ matrix.path }}"
-          test -f "${{ matrix.path }}/build.gradle" -o -f "${{ matrix.path }}/build.gradle.kts"
-
-      - name: Build (Gradle)
-        run: |
-          gradle -p "${{ matrix.path }}" clean build -x test --no-daemon
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -68,6 +54,29 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Ensure ECR repository exists
+        run: |
+          REPO="${{ env.PROJECT }}/${{ matrix.service }}"
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+          aws ecr create-repository --repository-name "$REPO" \
+            --image-scanning-configuration scanOnPush=true \
+            --encryption-configuration encryptionType=AES256
+          echo "ECR repo ready: $REPO"
+
+      - name: Sanity check for Gradle files
+        run: |
+          ls -al "${{ matrix.path }}"
+          test -f "${{ matrix.path }}/build.gradle" -o -f "${{ matrix.path }}/build.gradle.kts"
+
+      - name: Build (Gradle) - prefer wrapper if exists
+        run: |
+          if [ -f "${{ matrix.path }}/gradlew" ]; then
+            chmod +x "${{ matrix.path }}/gradlew"
+            (cd "${{ matrix.path }}" && ./gradlew clean build -x test --no-daemon)
+          else
+            gradle -p "${{ matrix.path }}" clean build -x test --no-daemon
+          fi
 
       - name: Build & Push Docker image
         uses: docker/build-push-action@v5
