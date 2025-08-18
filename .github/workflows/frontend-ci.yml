@@ -1,4 +1,4 @@
-name: Frontend CI (build only)
+name: Frontend CI/CD → ECR
 
 on:
   push:
@@ -10,8 +10,15 @@ on:
     paths:
       - "frontend/**"
 
+env:
+  AWS_REGION: ap-northeast-2
+  PROJECT: dailybriefing        # ECR repo prefix (예: dailybriefing/frontend)
+
+permissions:
+  contents: read
+
 jobs:
-  build:
+  build-and-push-frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,41 +28,72 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # (선택) 로컬 빌드 확인 — Dockerfile에서 자체 빌드한다면 생략 가능
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Install deps
         run: npm ci
 
-      - name: Build
+      - name: Build (optional sanity)
+        env:
+          CI: "false"                     # React warning→error 방지
+          NODE_OPTIONS: "--max_old_space_size=4096"
         run: npm run build
 
-      - name: Done
-        run: echo "✅ Frontend build succeeded"
+      # --- AWS 자격증명 + ECR 로그인 ---
+      - name: Configure AWS credentials (Static Keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      # --- (옵션) Docker로 패키징해서 ECR 푸시 ---
-      # env:
-      #   AWS_REGION: ap-northeast-2
-      #   PROJECT: dailybriefing
-      #   SERVICE: frontend
-      # permissions:
-      #   id-token: write
-      #   contents: read
-      # - name: Configure AWS credentials (OIDC)
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_ARN }}
-      #     aws-region: ${{ env.AWS_REGION }}
-      # - name: Login to Amazon ECR
-      #   id: login-ecr
-      #   uses: aws-actions/amazon-ecr-login@v2
-      # - name: Build & Push Docker image
-      #   uses: docker/build-push-action@v5
-      #   with:
-      #     context: ./frontend
-      #     push: true
-      #     tags: |
-      #       ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ env.SERVICE }}:${{ github.sha }}
-      #       ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ env.SERVICE }}:latest
+      - name: Who am I? (debug)
+        run: aws sts get-caller-identity
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # --- Buildx (컨테이너 드라이버) + GHA 캐시 ---
+      - name: Set up Docker Buildx (container driver)
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+          driver: docker-container
+
+      - name: Inspect buildx (debug)
+        run: docker buildx inspect --bootstrap
+
+      # --- ECR 리포 없으면 생성 ---
+      - name: Ensure ECR repository exists
+        run: |
+          REPO="${{ env.PROJECT }}/frontend"
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+          aws ecr create-repository --repository-name "$REPO" \
+            --image-scanning-configuration scanOnPush=true \
+            --encryption-configuration encryptionType=AES256
+          echo "ECR repo ready: $REPO"
+
+      # --- Docker 빌드 & 푸시 (컨텍스트는 ./frontend) ---
+      - name: Build & Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/frontend:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Done
+        run: echo "✅ Frontend image pushed to ECR"
+
