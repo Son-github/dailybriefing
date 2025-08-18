@@ -13,10 +13,9 @@ on:
 env:
   AWS_REGION: ap-northeast-2
   PROJECT: dailybriefing
-  SERVICE: sentiment-service           # ← ECR 리포 이름과 일치
+  SERVICE: sentiment-service   # ECR repo: dailybriefing/sentiment-service
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
@@ -34,12 +33,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: 'pip'
+          cache-dependency-path: 'backend/news-service/sentiment/requirements.txt'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+      # ---- (선택) 품질 체크 ----
       - name: Lint (optional)
         run: |
           pip install flake8 || true
@@ -50,19 +52,48 @@ jobs:
           pip install pytest || true
           pytest -q || true
 
-      - name: Configure AWS credentials (OIDC)
+      # ---- AWS 자격증명: Static Keys 사용 ----
+      - name: Configure AWS credentials (Static Keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Who am I? (debug)
+        run: aws sts get-caller-identity
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # ---- Buildx (컨테이너 드라이버) + GHA 캐시 ----
+      - name: Set up Docker Buildx (container driver)
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+          driver: docker-container
+
+      - name: Inspect buildx (debug)
+        run: docker buildx inspect --bootstrap
+
+      # ---- ECR 리포 없으면 자동 생성 ----
+      - name: Ensure ECR repository exists
+        env:
+          REPO: ${{ env.PROJECT }}/${{ env.SERVICE }}
+        run: |
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+          aws ecr create-repository --repository-name "$REPO" \
+            --image-scanning-configuration scanOnPush=true \
+            --encryption-configuration encryptionType=AES256
+          echo "ECR repo ready: $REPO"
+
+      # ---- Docker 빌드 & 푸시 ----
       - name: Build & Push Docker image
         uses: docker/build-push-action@v5
         with:
+          builder: ${{ steps.buildx.outputs.name }}
           context: ./backend/news-service/sentiment
           push: true
           tags: |
