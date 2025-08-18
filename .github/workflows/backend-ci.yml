@@ -17,7 +17,6 @@ env:
   PROJECT: dailybriefing
 
 permissions:
-  id-token: write  # for OIDC
   contents: read
 
 jobs:
@@ -45,6 +44,7 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # 🔐 Static Keys 방식으로 자격증명 로드 (OIDC 안씀)
       - name: Configure AWS credentials (Static Keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -52,10 +52,27 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # (선택) 디버그: 누가 로그인되어 있나
+      - name: Who am I?
+        run: aws sts get-caller-identity
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # 🧰 Buildx를 container driver로 설정 (GHA 캐시 사용 가능)
+      - name: Set up Docker Buildx (container driver)
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+          driver: docker-container
+
+      # (선택) 빌더 확인
+      - name: Inspect buildx
+        run: docker buildx inspect --bootstrap
+
+      # 📦 서비스별 ECR 리포 없으면 자동 생성
       - name: Ensure ECR repository exists
         run: |
           REPO="${{ env.PROJECT }}/${{ matrix.service }}"
@@ -65,6 +82,7 @@ jobs:
             --encryption-configuration encryptionType=AES256
           echo "ECR repo ready: $REPO"
 
+      # ✅ 보존: 대부분의 Spring Boot Dockerfile이 외부 빌드 산출물(jar)을 COPY하므로 사전 빌드 유지
       - name: Sanity check for Gradle files
         run: |
           ls -al "${{ matrix.path }}"
@@ -82,7 +100,7 @@ jobs:
       - name: Build & Push Docker image
         uses: docker/build-push-action@v5
         with:
-          builder: ${{ steps.buildx.outputs.name }}     # 선택(권장)
+          builder: ${{ steps.buildx.outputs.name }}   # 컨테이너 드라이버 빌더 지정
           context: ./${{ matrix.path }}
           push: true
           tags: |
