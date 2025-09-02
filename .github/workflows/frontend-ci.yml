@@ -1,51 +1,47 @@
-name: Frontend CI/CD → ECR
+name: Deploy Frontend → S3 + CloudFront
 
 on:
   push:
     branches: [ "main" ]
     paths:
       - "frontend/**"
-      - ".github/workflows/frontend-ci.yml"
-  pull_request:
-    paths:
-      - "frontend/**"
-
-env:
-  AWS_REGION: ap-northeast-2
-  PROJECT: dailybriefing        # ECR repo prefix (예: dailybriefing/frontend)
+      - ".github/workflows/deploy-frontend.yml"
 
 permissions:
   contents: read
 
-jobs:
-  build-and-push-frontend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
+env:
+  AWS_REGION: ap-northeast-2
+  BUILD_DIR: frontend/dist   # Vite/React는 보통 dist, CRA는 build 로 바꿔줘
+  # 빌드 시 프론트 환경변수 필요하면 아래처럼 넘겨도 됨 (예: VITE_API_BASE)
+  # VITE_API_BASE: "https://api.example.com"
 
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # (선택) 로컬 빌드 확인 — Dockerfile에서 자체 빌드한다면 생략 가능
-      - name: Setup Node
+      - name: Use Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "frontend/package-lock.json"
 
       - name: Install deps
+        working-directory: frontend
         run: npm ci
 
-      - name: Build (optional sanity)
+      - name: Build
+        working-directory: frontend
         env:
-          CI: "false"                     # React warning→error 방지
+          CI: "false"                     # CRA 경고→오류 방지
           NODE_OPTIONS: "--max_old_space_size=4096"
+          # VITE_API_BASE: ${{ env.VITE_API_BASE }}   # 필요 시 주석 해제
         run: npm run build
 
-      # --- AWS 자격증명 + ECR 로그인 ---
       - name: Configure AWS credentials (Static Keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -56,44 +52,39 @@ jobs:
       - name: Who am I? (debug)
         run: aws sts get-caller-identity
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      # --- Buildx (컨테이너 드라이버) + GHA 캐시 ---
-      - name: Set up Docker Buildx (container driver)
-        id: buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          install: true
-          driver: docker-container
-
-      - name: Inspect buildx (debug)
-        run: docker buildx inspect --bootstrap
-
-      # --- ECR 리포 없으면 생성 ---
-      - name: Ensure ECR repository exists
+      # 기본 동기화 (삭제 동기화 + sourcemap 제외 권장)
+      - name: Sync to S3 (delete removed files)
         run: |
-          REPO="${{ env.PROJECT }}/frontend"
-          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
-          aws ecr create-repository --repository-name "$REPO" \
-            --image-scanning-configuration scanOnPush=true \
-            --encryption-configuration encryptionType=AES256
-          echo "ECR repo ready: $REPO"
+          aws s3 sync "${{ env.BUILD_DIR }}" "s3://${{ secrets.S3_BUCKET_NAME }}/" \
+            --delete \
+            --exclude ".DS_Store" \
+            --exclude "*.map"
 
-      # --- Docker 빌드 & 푸시 (컨텍스트는 ./frontend) ---
-      - name: Build & Push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          builder: ${{ steps.buildx.outputs.name }}
-          context: ./frontend
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/frontend:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/frontend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # index.html 은 항상 즉시 반영되도록 no-store
+      - name: Set no-cache for index.html
+        run: |
+          aws s3 cp "s3://${{ secrets.S3_BUCKET_NAME }}/index.html" "s3://${{ secrets.S3_BUCKET_NAME }}/index.html" \
+            --metadata-directive REPLACE \
+            --cache-control "no-store" \
+            --content-type "text/html"
 
-      - name: Done
-        run: echo "✅ Frontend image pushed to ECR"
+      # 해시된 정적 리소스는 1년 캐시(immutable)
+      - name: Long-cache for hashed assets
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+          for ext in js css svg png jpg jpeg webp woff woff2 ttf; do
+            for f in "${{ env.BUILD_DIR }}"/**/*.${ext}; do
+              key="${f#${{ env.BUILD_DIR }}/}"
+              aws s3 cp "$f" "s3://${{ secrets.S3_BUCKET_NAME }}/${key}" \
+                --metadata-directive REPLACE \
+                --cache-control "public, max-age=31536000, immutable"
+            done
+          done
 
+      # CloudFront는 index.html만 무효화하면 거의 즉시 최신 반영 (비용↓)
+      - name: Invalidate CloudFront (index + root)
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ secrets.CLOUDFRONT_DIST_ID }}" \
+            --paths "/index.html" "/"
