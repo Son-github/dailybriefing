@@ -2,10 +2,8 @@ name: Deploy Frontend → S3 + CloudFront
 
 on:
   push:
-    branches: [ "main" ]
-    paths:
-      - "frontend/**"
-      - ".github/workflows/deploy-frontend.yml"
+    branches: [ "main" ]   # ← paths 필터 제거
+  workflow_dispatch:        # ← 수동 실행 버튼 활성화
 
 permissions:
   contents: read
@@ -26,11 +24,9 @@ jobs:
       DIST_ID: ${{ secrets.CLOUDFRONT_DIST_ID }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Use Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
@@ -43,7 +39,7 @@ jobs:
       - name: Build
         working-directory: frontend
         env:
-          CI: "false"                     # CRA 경고→오류 방지
+          CI: "false"
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: npm run build
 
@@ -62,16 +58,11 @@ jobs:
           test -d "${BUILD_DIR}" || (echo "❌ ${BUILD_DIR} not found"; exit 1)
           ls -la "${BUILD_DIR}"
 
-      # 기본 동기화 (삭제 동기화 + sourcemap 제외 권장)
       - name: Sync to S3 (delete removed files)
         run: |
           aws s3 sync "${BUILD_DIR}" "s3://${BUCKET}/" \
-            --delete \
-            --exclude ".DS_Store" \
-            --exclude "*.map" \
-            --only-show-errors
+            --delete --exclude ".DS_Store" --exclude "*.map" --only-show-errors
 
-      # index.html 은 항상 즉시 반영되도록 no-store
       - name: Set no-cache for index.html
         run: |
           aws s3 cp "s3://${BUCKET}/index.html" "s3://${BUCKET}/index.html" \
@@ -80,7 +71,6 @@ jobs:
             --content-type "text/html" \
             --only-show-errors
 
-      # 해시된 정적 리소스는 1년 캐시(immutable)
       - name: Long-cache for hashed assets
         shell: bash
         run: |
@@ -95,25 +85,20 @@ jobs:
             done
           done
 
-      # CloudFront는 index.html만 무효화하면 거의 즉시 최신 반영 (비용↓)
       - name: Invalidate CloudFront (index + root)
         run: |
-          aws cloudfront create-invalidation \
-            --distribution-id "${DIST_ID}" \
-            --paths "/index.html" "/"
+          aws cloudfront create-invalidation --distribution-id "${DIST_ID}" --paths "/index.html" "/"
 
-      # (선택) 무효화 완료 대기 + 간단 스모크 테스트
       - name: Wait invalidation & smoke test
         shell: bash
         run: |
           ID=$(aws cloudfront list-invalidations --distribution-id "${DIST_ID}" \
                --query 'InvalidationList.Items[0].Id' --output text)
-          echo "Waiting invalidation $ID ..."
-          until [ "$(aws cloudfront get-invalidation --distribution-id "${DIST_ID}" --id "$ID" --query 'Invalidation.Status' --output text)" = "Completed" ]; do
+          until [ "$(aws cloudfront get-invalidation --distribution-id "${DIST_ID}" --id "$ID" \
+                    --query 'Invalidation.Status' --output text)" = "Completed" ]; do
             sleep 5
           done
           DOMAIN=$(aws cloudfront get-distribution --id "${DIST_ID}" --query 'Distribution.DomainName' --output text)
-          echo "CF domain: https://${DOMAIN}"
           code=$(curl -s -o /dev/null -w "%{http_code}" "https://${DOMAIN}/")
           echo "HTTP $code"
           test "$code" -eq 200
