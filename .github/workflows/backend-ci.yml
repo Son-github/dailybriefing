@@ -1,4 +1,4 @@
-name: Backend CI/CD → ECR
+name: Backend CI/CD → ECR + ECS
 
 on:
   push:
@@ -11,6 +11,7 @@ on:
     paths:
       - "backend/*-service/**"
       - "!backend/news-service/sentiment/**"
+  workflow_dispatch:
 
 env:
   AWS_REGION: ap-northeast-2
@@ -20,19 +21,24 @@ permissions:
   contents: read
 
 jobs:
-  build-and-push:
+  build-push-deploy:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - service: auth-service
             path: backend/auth-service
+            port: 8081
           - service: exchange-service
             path: backend/exchange-service
+            port: 8082
           - service: news-service
             path: backend/news-service/backend
+            port: 8084
           - service: weather-service
             path: backend/weather-service
+            port: 8083
 
     steps:
       - name: Checkout
@@ -44,7 +50,7 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # 🔐 Static Keys 방식으로 자격증명 로드 (OIDC 안씀)
+      # 🔐 Static Keys (요구사항대로 OIDC 미사용)
       - name: Configure AWS credentials (Static Keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -52,44 +58,44 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # (선택) 디버그: 누가 로그인되어 있나
-      - name: Who am I?
+      - name: Who am I? (debug)
         run: aws sts get-caller-identity
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 🧰 Buildx를 container driver로 설정 (GHA 캐시 사용 가능)
-      - name: Set up Docker Buildx (container driver)
-        id: buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          install: true
-          driver: docker-container
-
-      # (선택) 빌더 확인
-      - name: Inspect buildx
-        run: docker buildx inspect --bootstrap
-
-      # 📦 서비스별 ECR 리포 없으면 자동 생성
-      - name: Ensure ECR repository exists
+      - name: Ensure ECR repository exists + keep only 1 image
+        env:
+          REPO: ${{ env.PROJECT }}/${{ matrix.service }}
         run: |
-          REPO="${{ env.PROJECT }}/${{ matrix.service }}"
+          set -e
           aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
           aws ecr create-repository --repository-name "$REPO" \
             --image-scanning-configuration scanOnPush=true \
             --encryption-configuration encryptionType=AES256
-          echo "ECR repo ready: $REPO"
+          # 🔁 최신 이미지 1개만 보존 (비용 최소화)
+          aws ecr put-lifecycle-policy \
+            --repository-name "$REPO" \
+            --lifecycle-policy-text '{
+              "rules": [
+                {
+                  "rulePriority": 1,
+                  "description": "keep only the most recent image",
+                  "selection": {
+                    "tagStatus": "any",
+                    "countType": "imageCountMoreThan",
+                    "countNumber": 1
+                  },
+                  "action": { "type": "expire" }
+                }
+              ]
+            }'
 
-      # ✅ 보존: 대부분의 Spring Boot Dockerfile이 외부 빌드 산출물(jar)을 COPY하므로 사전 빌드 유지
-      - name: Sanity check for Gradle files
+      # ⛳ Gradle 빌드 (wrapper 우선)
+      - name: Build (Gradle)
         run: |
           ls -al "${{ matrix.path }}"
-          test -f "${{ matrix.path }}/build.gradle" -o -f "${{ matrix.path }}/build.gradle.kts"
-
-      - name: Build (Gradle) - prefer wrapper if exists
-        run: |
           if [ -f "${{ matrix.path }}/gradlew" ]; then
             chmod +x "${{ matrix.path }}/gradlew"
             (cd "${{ matrix.path }}" && ./gradlew clean build -x test --no-daemon)
@@ -97,10 +103,11 @@ jobs:
             gradle -p "${{ matrix.path }}" clean build -x test --no-daemon
           fi
 
+      # 🐳 Build & Push (sha + latest)
       - name: Build & Push Docker image
+        id: bp
         uses: docker/build-push-action@v5
         with:
-          builder: ${{ steps.buildx.outputs.name }}   # 컨테이너 드라이버 빌더 지정
           context: ./${{ matrix.path }}
           push: true
           tags: |
@@ -109,5 +116,66 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Done
-        run: echo "✅ Pushed ${{ matrix.service }} to ECR"
+      # 🚀 Deploy to ECS (서비스명=컨테이너명=TF의 services 키와 동일 가정)
+      - name: Resolve image and names
+        id: vars
+        env:
+          REG: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          echo "image=${REG}/${{ env.PROJECT }}/${{ matrix.service }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "service=${{ matrix.service }}" >> $GITHUB_OUTPUT
+          echo "cluster=${{ secrets.ECS_CLUSTER }}" >> $GITHUB_OUTPUT
+
+      - name: Fetch current task definition (from service)
+        id: current
+        run: |
+          TD_ARN=$(aws ecs describe-services \
+            --cluster "${{ steps.vars.outputs.cluster }}" \
+            --services "${{ steps.vars.outputs.service }}" \
+            --query 'services[0].taskDefinition' --output text)
+          if [ -z "$TD_ARN" ] || [ "$TD_ARN" = "None" ]; then
+            echo "No such ECS service: ${{ steps.vars.outputs.service }}"
+            exit 1
+          fi
+          echo "td_arn=$TD_ARN" >> $GITHUB_OUTPUT
+          aws ecs describe-task-definition --task-definition "$TD_ARN" \
+            --query 'taskDefinition' > td.json
+
+      - name: Patch image in task definition JSON
+        run: |
+          # 컨테이너 이름은 서비스명과 동일 가정 (Terraform에서 그렇게 생성)
+          jq --arg NAME "${{ steps.vars.outputs.service }}" \
+             --arg IMG  "${{ steps.vars.outputs.image }}" \
+             '
+             .containerDefinitions |= map(if .name==$NAME then .image=$IMG else . end)
+             | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)
+             ' td.json > td.new.json
+          cat td.new.json | jq '.containerDefinitions[] | {name,image}'
+
+      - name: Register new task definition
+        id: reg
+        run: |
+          NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://td.new.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "td_arn=$NEW_TD_ARN" >> $GITHUB_OUTPUT
+
+      - name: Update ECS service (rolling)
+        run: |
+          aws ecs update-service \
+            --cluster "${{ steps.vars.outputs.cluster }}" \
+            --service "${{ steps.vars.outputs.service }}" \
+            --task-definition "${{ steps.reg.outputs.td_arn }}" \
+            --force-new-deployment
+
+      - name: Wait until service stable
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${{ steps.vars.outputs.cluster }}" \
+            --services "${{ steps.vars.outputs.service }}"
+          echo "✅ Deployed ${{ matrix.service }}"
+
+      # (선택) 헬스 엔드포인트 확인 (ALB 경유가 아니라 내부면 스킵)
+      # - name: Health check via ALB
+      #   run: |
+      #     curl -fsS https://<YOUR_ALB_DNS>/api/health || exit 1
+
