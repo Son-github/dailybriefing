@@ -10,15 +10,21 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   AWS_REGION: ap-northeast-2
-  BUILD_DIR: frontend/dist   # Vite/React는 보통 dist, CRA는 build 로 바꿔줘
-  # 빌드 시 프론트 환경변수 필요하면 아래처럼 넘겨도 됨 (예: VITE_API_BASE)
-  # VITE_API_BASE: "https://api.example.com"
+  BUILD_DIR: frontend/dist   # CRA면 build 로 변경
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      BUCKET: ${{ secrets.S3_BUCKET_NAME }}
+      DIST_ID: ${{ secrets.CLOUDFRONT_DIST_ID }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,7 +45,6 @@ jobs:
         env:
           CI: "false"                     # CRA 경고→오류 방지
           NODE_OPTIONS: "--max_old_space_size=4096"
-          # VITE_API_BASE: ${{ env.VITE_API_BASE }}   # 필요 시 주석 해제
         run: npm run build
 
       - name: Configure AWS credentials (Static Keys)
@@ -52,21 +57,28 @@ jobs:
       - name: Who am I? (debug)
         run: aws sts get-caller-identity
 
+      - name: Check build dir exists
+        run: |
+          test -d "${BUILD_DIR}" || (echo "❌ ${BUILD_DIR} not found"; exit 1)
+          ls -la "${BUILD_DIR}"
+
       # 기본 동기화 (삭제 동기화 + sourcemap 제외 권장)
       - name: Sync to S3 (delete removed files)
         run: |
-          aws s3 sync "${{ env.BUILD_DIR }}" "s3://${{ secrets.S3_BUCKET_NAME }}/" \
+          aws s3 sync "${BUILD_DIR}" "s3://${BUCKET}/" \
             --delete \
             --exclude ".DS_Store" \
-            --exclude "*.map"
+            --exclude "*.map" \
+            --only-show-errors
 
       # index.html 은 항상 즉시 반영되도록 no-store
       - name: Set no-cache for index.html
         run: |
-          aws s3 cp "s3://${{ secrets.S3_BUCKET_NAME }}/index.html" "s3://${{ secrets.S3_BUCKET_NAME }}/index.html" \
+          aws s3 cp "s3://${BUCKET}/index.html" "s3://${BUCKET}/index.html" \
             --metadata-directive REPLACE \
             --cache-control "no-store" \
-            --content-type "text/html"
+            --content-type "text/html" \
+            --only-show-errors
 
       # 해시된 정적 리소스는 1년 캐시(immutable)
       - name: Long-cache for hashed assets
@@ -74,11 +86,12 @@ jobs:
         run: |
           shopt -s globstar nullglob
           for ext in js css svg png jpg jpeg webp woff woff2 ttf; do
-            for f in "${{ env.BUILD_DIR }}"/**/*.${ext}; do
-              key="${f#${{ env.BUILD_DIR }}/}"
-              aws s3 cp "$f" "s3://${{ secrets.S3_BUCKET_NAME }}/${key}" \
+            for f in "${BUILD_DIR}"/**/*.${ext}; do
+              key="${f#${BUILD_DIR}/}"
+              aws s3 cp "$f" "s3://${BUCKET}/${key}" \
                 --metadata-directive REPLACE \
-                --cache-control "public, max-age=31536000, immutable"
+                --cache-control "public, max-age=31536000, immutable" \
+                --only-show-errors
             done
           done
 
@@ -86,6 +99,21 @@ jobs:
       - name: Invalidate CloudFront (index + root)
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id "${{ secrets.CLOUDFRONT_DIST_ID }}" \
+            --distribution-id "${DIST_ID}" \
             --paths "/index.html" "/"
-          
+
+      # (선택) 무효화 완료 대기 + 간단 스모크 테스트
+      - name: Wait invalidation & smoke test
+        shell: bash
+        run: |
+          ID=$(aws cloudfront list-invalidations --distribution-id "${DIST_ID}" \
+               --query 'InvalidationList.Items[0].Id' --output text)
+          echo "Waiting invalidation $ID ..."
+          until [ "$(aws cloudfront get-invalidation --distribution-id "${DIST_ID}" --id "$ID" --query 'Invalidation.Status' --output text)" = "Completed" ]; do
+            sleep 5
+          done
+          DOMAIN=$(aws cloudfront get-distribution --id "${DIST_ID}" --query 'Distribution.DomainName' --output text)
+          echo "CF domain: https://${DOMAIN}"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "https://${DOMAIN}/")
+          echo "HTTP $code"
+          test "$code" -eq 200
