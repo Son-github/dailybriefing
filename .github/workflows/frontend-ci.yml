@@ -2,8 +2,8 @@ name: Deploy Frontend → S3 + CloudFront
 
 on:
   push:
-    branches: [ "main" ]   # ← paths 필터 제거
-  workflow_dispatch:        # ← 수동 실행 버튼 활성화
+    branches: [ "main" ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,7 +14,6 @@ concurrency:
 
 env:
   AWS_REGION: ap-northeast-2
-  BUILD_DIR: frontend/dist   # CRA면 build 로 변경
 
 jobs:
   build-and-deploy:
@@ -43,6 +42,29 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: npm run build
 
+      # 🔎 빌드 산출물 폴더 자동 탐지 (Vite/CRA/Next.js 대응)
+      - name: Detect build output directory
+        id: detect
+        shell: bash
+        run: |
+          set -e
+          CANDIDATES=(frontend/dist frontend/build frontend/out)
+          for d in "${CANDIDATES[@]}"; do
+            if [ -d "$d" ]; then
+              echo "Found build dir: $d"
+              echo "BUILD_DIR=$d" >> $GITHUB_ENV
+              exit 0
+            fi
+          done
+          echo "❌ No known build dir found. Listing frontend/:"
+          ls -la frontend
+          exit 1
+
+      - name: Show build dir
+        run: |
+          echo "Using BUILD_DIR=${BUILD_DIR}"
+          ls -la "${BUILD_DIR}"
+
       - name: Configure AWS credentials (Static Keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -52,11 +74,6 @@ jobs:
 
       - name: Who am I? (debug)
         run: aws sts get-caller-identity
-
-      - name: Check build dir exists
-        run: |
-          test -d "${BUILD_DIR}" || (echo "❌ ${BUILD_DIR} not found"; exit 1)
-          ls -la "${BUILD_DIR}"
 
       - name: Sync to S3 (delete removed files)
         run: |
