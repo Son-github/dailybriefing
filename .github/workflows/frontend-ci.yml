@@ -146,3 +146,4 @@ jobs:
           code=$(curl -s -o /dev/null -w "%{http_code}" "https://${CF_DOMAIN}/")
           echo "HTTP $code"
           test "$code" -eq 200
+
