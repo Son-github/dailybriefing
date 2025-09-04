@@ -13,14 +13,14 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AWS_REGION: ap-northeast-2   # CF는 global이지만 S3/자격증명에 필요
+  AWS_REGION: ap-northeast-2   # CF는 글로벌이지만 S3/자격증명용 리전
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     env:
       BUCKET: ${{ secrets.S3_BUCKET_NAME }}
-      # 선택: DIST_ID를 비워두거나 "auto" 로 두면 자동 탐지
+      # 비워두거나 "auto"면 자동 탐지됨
       DIST_ID: ${{ secrets.CLOUDFRONT_DIST_ID }}
 
     steps:
@@ -43,6 +43,7 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: npm run build
 
+      # 🔎 빌드 산출물 자동 탐지 (Vite/CRA/Next.js 공통)
       - name: Detect build output directory
         id: detect
         shell: bash
@@ -51,11 +52,12 @@ jobs:
           CANDIDATES=(frontend/dist frontend/build frontend/out)
           for d in "${CANDIDATES[@]}"; do
             if [ -d "$d" ]; then
+              echo "Found build dir: $d"
               echo "BUILD_DIR=$d" >> $GITHUB_ENV
               exit 0
             fi
           done
-          echo "❌ No known build dir found"; ls -la frontend; exit 1
+          echo "❌ No known build dir found. Listing frontend/:"; ls -la frontend; exit 1
 
       - name: Show build dir
         run: |
@@ -99,51 +101,76 @@ jobs:
             done
           done
 
-      # ✅ CloudFront 배포 ID 자동 탐지 (S3 원본 매칭)
-      - name: Resolve CloudFront distribution
+      # ✅ CloudFront 배포 ID 검증 / 자동 탐지 (S3 원본 기반)
+      - name: Resolve CloudFront distribution (verify or auto-detect)
         id: cf
         shell: bash
         run: |
           set -e
+          echo "Input DIST_ID='${DIST_ID}'  BUCKET='${BUCKET}'  AWS_REGION='${AWS_REGION}'"
+
+          # 0) preset DIST_ID가 유효하면 그대로 사용
           if [ -n "${DIST_ID}" ] && [ "${DIST_ID}" != "auto" ]; then
-            echo "Using preset DIST_ID=${DIST_ID}"
-          else
-            ORIG_DN="${BUCKET}.s3.${AWS_REGION}.amazonaws.com"
-            echo "Searching CF distribution by origin: ${ORIG_DN}"
-            DID=$(aws cloudfront list-distributions \
-              --query "DistributionList.Items[?contains(Origins.Items[].DomainName, \`${ORIG_DN}\`)].Id | [0]" \
-              --output text)
-            if [ -z "$DID" ] || [ "$DID" = "None" ]; then
-              echo "❌ Could not find CloudFront distribution for origin ${ORIG_DN}"
-              echo "Available distributions (Id / Domain / FirstOrigin):"
-              aws cloudfront list-distributions \
-                --query "DistributionList.Items[].{Id:Id,Domain:DomainName,Origin:Origins.Items[0].DomainName}" \
-                --output table || true
-              exit 1
+            if aws cloudfront get-distribution --id "${DIST_ID}" >/dev/null 2>&1; then
+              DOMAIN=$(aws cloudfront get-distribution --id "${DIST_ID}" --query 'Distribution.DomainName' --output text)
+              echo "Preset DIST_ID is valid: ${DIST_ID} (${DOMAIN})"
+              echo "CF_DOMAIN=${DOMAIN}" >> $GITHUB_ENV
+              exit 0
+            else
+              echo "Preset DIST_ID='${DIST_ID}' is invalid (NoSuchDistribution). Will auto-detect."
             fi
-            echo "DIST_ID=$DID" >> $GITHUB_ENV
-            DIST_ID="$DID"
           fi
-          DOMAIN=$(aws cloudfront list-distributions \
-            --query "DistributionList.Items[?Id=='${DIST_ID}'].DomainName | [0]" --output text)
-          echo "CF_DOMAIN=$DOMAIN" >> $GITHUB_ENV
-          echo "Resolved: DIST_ID=${DIST_ID}, DOMAIN=${DOMAIN}"
+
+          # 1) 원본 도메인 후보 (OAC/정적 사이트 모든 케이스 커버)
+          ORIGIN_CANDIDATES=(
+            "${BUCKET}.s3.${AWS_REGION}.amazonaws.com"
+            "${BUCKET}.s3.amazonaws.com"
+            "${BUCKET}.s3-website.${AWS_REGION}.amazonaws.com"
+            "${BUCKET}.s3-website-${AWS_REGION}.amazonaws.com"
+          )
+
+          for ORIG in "${ORIGIN_CANDIDATES[@]}"; do
+            echo "Searching by origin: ${ORIG}"
+            DID=$(aws cloudfront list-distributions \
+              --query "DistributionList.Items[?contains(Origins.Items[].DomainName, \`${ORIG}\`)].Id | [0]" \
+              --output text)
+            if [ -n "$DID" ] && [ "$DID" != "None" ]; then
+              DOMAIN=$(aws cloudfront get-distribution --id "$DID" --query 'Distribution.DomainName' --output text)
+              echo "Found distribution: ${DID} (${DOMAIN}) via origin ${ORIG}"
+              echo "DIST_ID=$DID" >> $GITHUB_ENV
+              echo "CF_DOMAIN=$DOMAIN" >> $GITHUB_ENV
+              exit 0
+            fi
+          done
+
+          echo "❌ Could not resolve CloudFront distribution for bucket='${BUCKET}' in account $(aws sts get-caller-identity --query Account --output text)."
+          echo "Available distributions (Id / Domain / Origins):"
+          aws cloudfront list-distributions \
+            --query "DistributionList.Items[].{Id:Id,Domain:DomainName,Origins:join(', ', Origins.Items[].DomainName)}" \
+            --output table || true
+          exit 1
 
       - name: Invalidate CloudFront (index + root)
+        shell: bash
         run: |
+          set -e
+          test -n "${DIST_ID}" || { echo "DIST_ID is empty"; exit 1; }
           aws cloudfront create-invalidation --distribution-id "${DIST_ID}" --paths "/index.html" "/"
 
       - name: Wait invalidation & smoke test
         shell: bash
         run: |
           set -e
-          ID=$(aws cloudfront list-invalidations --distribution-id "${DIST_ID}" \
-               --query 'InvalidationList.Items[0].Id' --output text)
-          until [ "$(aws cloudfront get-invalidation --distribution-id "${DIST_ID}" --id "$ID" \
+          test -n "${DIST_ID}" || { echo "DIST_ID is empty"; exit 1; }
+          INV_ID=$(aws cloudfront list-invalidations --distribution-id "${DIST_ID}" \
+                   --query 'InvalidationList.Items[0].Id' --output text)
+          until [ "$(aws cloudfront get-invalidation --distribution-id "${DIST_ID}" --id "$INV_ID" \
                     --query 'Invalidation.Status' --output text)" = "Completed" ]; do
             sleep 5
           done
+          if [ -z "${CF_DOMAIN}" ] || [ "${CF_DOMAIN}" = "None" ]; then
+            CF_DOMAIN=$(aws cloudfront get-distribution --id "${DIST_ID}" --query 'Distribution.DomainName' --output text)
+          fi
           code=$(curl -s -o /dev/null -w "%{http_code}" "https://${CF_DOMAIN}/")
-          echo "HTTP $code"
+          echo "HTTP $code from https://${CF_DOMAIN}/"
           test "$code" -eq 200
-
