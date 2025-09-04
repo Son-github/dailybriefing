@@ -50,7 +50,7 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # 🔐 Static Keys (요구사항대로 OIDC 미사용)
+      # 🔐 Static Keys (OIDC 미사용)
       - name: Configure AWS credentials (Static Keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -74,7 +74,6 @@ jobs:
           aws ecr create-repository --repository-name "$REPO" \
             --image-scanning-configuration scanOnPush=true \
             --encryption-configuration encryptionType=AES256
-          # 🔁 최신 이미지 1개만 보존 (비용 최소화)
           aws ecr put-lifecycle-policy \
             --repository-name "$REPO" \
             --lifecycle-policy-text '{
@@ -92,7 +91,7 @@ jobs:
               ]
             }'
 
-      # ⛳ Gradle 빌드 (wrapper 우선)
+      # ⛳ Gradle 빌드
       - name: Build (Gradle)
         run: |
           ls -al "${{ matrix.path }}"
@@ -103,7 +102,7 @@ jobs:
             gradle -p "${{ matrix.path }}" clean build -x test --no-daemon
           fi
 
-      # 🐳 Build & Push (sha + latest)
+      # 🐳 Docker Build & Push (cache 옵션 제거 → 255 방지)
       - name: Build & Push Docker image
         id: bp
         uses: docker/build-push-action@v5
@@ -114,7 +113,7 @@ jobs:
             ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:latest
 
-      # 🚀 Deploy to ECS (서비스명=컨테이너명=TF의 services 키와 동일 가정)
+      # 🚀 Deploy to ECS
       - name: Resolve image and names
         id: vars
         env:
@@ -127,12 +126,13 @@ jobs:
       - name: Fetch current task definition (from service)
         id: current
         run: |
+          set -e
           TD_ARN=$(aws ecs describe-services \
             --cluster "${{ steps.vars.outputs.cluster }}" \
             --services "${{ steps.vars.outputs.service }}" \
-            --query 'services[0].taskDefinition' --output text)
+            --query 'services[0].taskDefinition' --output text || echo "")
           if [ -z "$TD_ARN" ] || [ "$TD_ARN" = "None" ]; then
-            echo "No such ECS service: ${{ steps.vars.outputs.service }}"
+            echo "❌ No such ECS service: ${{ steps.vars.outputs.service }}"
             exit 1
           fi
           echo "td_arn=$TD_ARN" >> $GITHUB_OUTPUT
@@ -141,7 +141,7 @@ jobs:
 
       - name: Patch image in task definition JSON
         run: |
-          # 컨테이너 이름은 서비스명과 동일 가정 (Terraform에서 그렇게 생성)
+          sudo apt-get update && sudo apt-get install -y jq
           jq --arg NAME "${{ steps.vars.outputs.service }}" \
              --arg IMG  "${{ steps.vars.outputs.image }}" \
              '
@@ -171,8 +171,3 @@ jobs:
             --cluster "${{ steps.vars.outputs.cluster }}" \
             --services "${{ steps.vars.outputs.service }}"
           echo "✅ Deployed ${{ matrix.service }}"
-
-      # (선택) 헬스 엔드포인트 확인 (ALB 경유가 아니라 내부면 스킵)
-      # - name: Health check via ALB
-      #   run: |
-      #     curl -fsS https://<YOUR_ALB_DNS>/api/health || exit 1
