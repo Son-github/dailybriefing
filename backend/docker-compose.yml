@@ -70,27 +70,6 @@ services:
       - POSTGRES_PORT=5432
       - EXCHANGE_API_KEY=${EXCHANGE_API_KEY}
 
-#  stock-service:
-#    build:
-#      context: ./stock-service
-#    ports:
-#      - "8082:8082"
-#    networks:
-#      - backend-net
-#    depends_on:
-#      - postgres
-
-
-#  airquality-service:
-#    build:
-#      context: ./airquality-service
-#    ports:
-#      - "8084:8084"
-#    networks:
-#      - backend-net
-#    depends_on:
-#      - postgres
-
 #  news-service:
 #    build:
 #      context: ./news-service
@@ -100,21 +79,6 @@ services:
 #      - backend-net
 #    depends_on:
 #      - postgres
-
-#  dashboard-aggregator-service:
-#    build:
-#      context: ./dashboard-aggregator-service
-#    ports:
-#      - "8086:8086"
-#    networks:
-#      - backend-net
-#    depends_on:
-#      - auth-service
-#      - exchange-service
-#      - stock-service
-#      - weather-service
-#      - airquality-service
-#      - news-service
 
 networks:
   backend-net:
