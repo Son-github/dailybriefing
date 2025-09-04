@@ -113,8 +113,6 @@ jobs:
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       # 🚀 Deploy to ECS (서비스명=컨테이너명=TF의 services 키와 동일 가정)
       - name: Resolve image and names
