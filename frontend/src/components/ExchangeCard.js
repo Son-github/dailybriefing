@@ -11,7 +11,7 @@ function ExchangeCard() {
     useEffect(() => {
         const fetchExchangeRate = async () => {
             try {
-                const res = await axios.get('http://localhost:8082/api/exchange');
+                const res = await axios.get('/api/exchange');
                 setData(res.data);
             } catch (error) {
                 console.error('환율 정보를 불러오지 못했습니다:', error);

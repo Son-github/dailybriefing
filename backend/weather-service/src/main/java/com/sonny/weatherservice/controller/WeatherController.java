@@ -12,7 +12,7 @@ import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/weather")
+@RequestMapping("/api/weather")
 @Tag(name = "weather", description = "날씨 데이터 API")
 public class WeatherController {
 

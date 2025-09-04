@@ -13,7 +13,7 @@ public class NewsController {
     private final NewsService newsService;
 
     // 뉴스 요약 + 감성 분석 결과 반환
-    @GetMapping("/news/fetch")
+    @GetMapping("/api/news/fetch")
     public NewsResponse fetchNews() {
         return newsService.fetchNewsSummary();
     }

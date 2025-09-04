@@ -7,7 +7,7 @@ function NewsCard() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        axios.get("http://localhost:8084/news/fetch")
+        axios.get("/api/news/fetch")
             .then((res) => {
                 setNewsList(res.data.topNews || []);
                 setLoading(false);
