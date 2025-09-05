@@ -102,7 +102,7 @@ jobs:
             gradle -p "${{ matrix.path }}" clean build -x test --no-daemon
           fi
 
-      # 🐳 Docker Build & Push (cache 옵션 제거 → 255 방지)
+      # 🐳 Docker Build & Push
       - name: Build & Push Docker image
         id: bp
         uses: docker/build-push-action@v5
@@ -165,10 +165,50 @@ jobs:
             --task-definition "${{ steps.reg.outputs.td_arn }}" \
             --force-new-deployment
 
-      - name: Wait until service stable
+      # ✅ 스마트 웨이터: ALB 헬스 + 롤아웃 상태 모니터링 (기본 20분)
+      - name: Wait until service & ALB healthy (smart waiter)
+        shell: bash
         run: |
-          aws ecs wait services-stable \
-            --cluster "${{ steps.vars.outputs.cluster }}" \
-            --services "${{ steps.vars.outputs.service }}"
-          echo "✅ Deployed ${{ matrix.service }}"
+          set -euo pipefail
+          CL="${{ steps.vars.outputs.cluster }}"
+          SV="${{ steps.vars.outputs.service }}"
+          MAX_MINUTES=20
+          SLEEP=15
+          LOOPS=$(( (MAX_MINUTES*60)/SLEEP ))
+
+          # 연결된 Target Group
+          TG=$(aws ecs describe-services --cluster "$CL" --services "$SV" --query 'services[0].loadBalancers[0].targetGroupArn' --output text)
+          echo "TargetGroup: $TG"
+
+          for (( i=1; i<=LOOPS; i++ )); do
+            SVC_JSON=$(aws ecs describe-services --cluster "$CL" --services "$SV")
+            RUN=$(echo "$SVC_JSON"  | jq -r '.services[0].runningCount')
+            DES=$(echo "$SVC_JSON"  | jq -r '.services[0].desiredCount')
+            ROLL=$(echo "$SVC_JSON" | jq -r '.services[0].deployments[] | select(.status=="PRIMARY") | .rolloutState' || echo "UNKNOWN")
+
+            HEALTH_OK=true
+            if [ "$TG" != "None" ]; then
+              STATES=$(aws elbv2 describe-target-health --target-group-arn "$TG" --query 'TargetHealthDescriptions[].TargetHealth.State' --output text || true)
+              for st in $STATES; do
+                if [ "$st" != "healthy" ]; then HEALTH_OK=false; fi
+              done
+            fi
+
+            echo "[$i/$LOOPS] rollout=$ROLL running=$RUN desired=$DES health=$HEALTH_OK"
+            if [ "$ROLL" = "COMPLETED" ] && [ "$RUN" -eq "$DES" ] && [ "$HEALTH_OK" = true ]; then
+              echo "✅ Service is stable and healthy."
+              exit 0
+            fi
+            sleep "$SLEEP"
+          done
+
+          echo "❌ Service did not become healthy within ${MAX_MINUTES}m. Dumping diagnostics..."
+          aws ecs describe-services --cluster "$CL" --services "$SV" \
+            --query 'services[0].events[0:10].[createdAt,message]'
+          if [ "$TG" != "None" ]; then
+            aws elbv2 describe-target-health --target-group-arn "$TG" \
+              --query 'TargetHealthDescriptions[].{Id:Target.Id,State:TargetHealth.State,Reason:TargetHealth.Reason,Desc:TargetHealth.Description}'
+          fi
+          exit 1
+
 
