@@ -102,13 +102,18 @@ jobs:
             gradle -p "${{ matrix.path }}" clean build -x test --no-daemon
           fi
 
-      # 🐳 Docker Build & Push
+      # 🛠️ Buildx 명시 셋업 (안정성)
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 🐳 Docker Build & Push (플랫폼 고정: linux/amd64)
       - name: Build & Push Docker image
         id: bp
         uses: docker/build-push-action@v5
         with:
           context: ./${{ matrix.path }}
           push: true
+          platforms: linux/amd64
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:latest
@@ -148,6 +153,12 @@ jobs:
              .containerDefinitions |= map(if .name==$NAME then .image=$IMG else . end)
              | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)
              ' td.json > td.new.json
+          # 포트 매핑 간단 검증(경고)
+          EXP=${{ matrix.port }}
+          ACT=$(jq -r --arg NAME "${{ steps.vars.outputs.service }}" '.containerDefinitions[] | select(.name==$NAME) | .portMappings[0].containerPort' td.json)
+          if [ "$ACT" != "$EXP" ]; then
+            echo "⚠️  Port mismatch: taskDef=$ACT vs matrix=$EXP (확인 필요)"
+          fi
           cat td.new.json | jq '.containerDefinitions[] | {name,image}'
 
       - name: Register new task definition
@@ -157,15 +168,16 @@ jobs:
             --query 'taskDefinition.taskDefinitionArn' --output text)
           echo "td_arn=$NEW_TD_ARN" >> $GITHUB_OUTPUT
 
-      - name: Update ECS service (rolling)
+      - name: Update ECS service (rolling, +grace 180s)
         run: |
           aws ecs update-service \
             --cluster "${{ steps.vars.outputs.cluster }}" \
             --service "${{ steps.vars.outputs.service }}" \
             --task-definition "${{ steps.reg.outputs.td_arn }}" \
+            --health-check-grace-period-seconds 180 \
             --force-new-deployment
 
-      # ✅ 스마트 웨이터: ALB 헬스 + 롤아웃 상태 모니터링 (기본 20분)
+      # ✅ 스마트 웨이터: 롤아웃/ALB 헬스 모니터링 + STOPPED 원인 출력
       - name: Wait until service & ALB healthy (smart waiter)
         shell: bash
         run: |
@@ -176,7 +188,6 @@ jobs:
           SLEEP=15
           LOOPS=$(( (MAX_MINUTES*60)/SLEEP ))
 
-          # 연결된 Target Group
           TG=$(aws ecs describe-services --cluster "$CL" --services "$SV" --query 'services[0].loadBalancers[0].targetGroupArn' --output text)
           echo "TargetGroup: $TG"
 
@@ -195,6 +206,17 @@ jobs:
             fi
 
             echo "[$i/$LOOPS] rollout=$ROLL running=$RUN desired=$DES health=$HEALTH_OK"
+
+            # 🔎 RUNNING=0일 때는 즉시 STOPPED 태스크 이유를 덤프(진단 가속)
+            if [ "$RUN" -eq 0 ]; then
+              STOP=$(aws ecs list-tasks --cluster "$CL" --service-name "$SV" --desired-status STOPPED --query 'taskArns' --output text || true)
+              if [ -n "$STOP" ] && [ "$STOP" != "None" ]; then
+                echo "---- STOPPED tasks details ----"
+                aws ecs describe-tasks --cluster "$CL" --tasks $STOP \
+                  --query 'tasks[].{StoppedReason:stoppedReason,Containers:containers[*].reason}'
+              fi
+            fi
+
             if [ "$ROLL" = "COMPLETED" ] && [ "$RUN" -eq "$DES" ] && [ "$HEALTH_OK" = true ]; then
               echo "✅ Service is stable and healthy."
               exit 0
@@ -209,6 +231,11 @@ jobs:
             aws elbv2 describe-target-health --target-group-arn "$TG" \
               --query 'TargetHealthDescriptions[].{Id:Target.Id,State:TargetHealth.State,Reason:TargetHealth.Reason,Desc:TargetHealth.Description}'
           fi
+          # 최근 앱 로그 80줄
+          LG="/ecs/$SV"
+          LS=$(aws logs describe-log-streams --log-group-name "$LG" --order-by LastEventTime --descending --max-items 1 --query 'logStreams[0].logStreamName' --output text || true)
+          if [ -n "$LS" ] && [ "$LS" != "None" ]; then
+            echo "---- last 80 log lines ----"
+            aws logs get-log-events --log-group-name "$LG" --log-stream-name "$LS" --limit 80 --query 'events[*].message' --output text || true
+          fi
           exit 1
-
-
