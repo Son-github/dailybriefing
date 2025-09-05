@@ -239,3 +239,4 @@ jobs:
             aws logs get-log-events --log-group-name "$LG" --log-stream-name "$LS" --limit 80 --query 'events[*].message' --output text || true
           fi
           exit 1
+
