@@ -1,16 +1,21 @@
 server:
-  port: 8081
+  port: ${SERVER_PORT:8081}
+  # ALB/CloudFront 뒤에서 원본 헤더 처리
+  forward-headers-strategy: native
 
 spring:
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-    username: ${POSTGRES_USER}
-    password: ${POSTGRES_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # 초기 연결 실패에도 바로 종료하지 않도록(컨테이너 부팅 안정화)
+      initialization-fail-timeout: ${SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT:0}
 
   jpa:
     hibernate:
-      ddl-auto: create # 향후에 update로 수정바람
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     show-sql: true
     properties:
       hibernate:
@@ -24,6 +29,18 @@ spring:
 
   jwt:
     secret: ${JWT_SECRET}
+
+
+# 헬스체크(예: /actuator/health) 노출
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info"
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 logging:
   level:
