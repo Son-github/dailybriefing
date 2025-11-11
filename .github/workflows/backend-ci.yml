@@ -23,6 +23,11 @@ permissions:
 jobs:
   build-push-deploy:
     runs-on: ubuntu-latest
+    # 서비스별로 병렬 실행하되, 같은 서비스에 대한 중복 실행은 막음
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.service }}
+      cancel-in-progress: false
+
     strategy:
       fail-fast: false
       matrix:
@@ -49,9 +54,26 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          cache: 'gradle'   # ✅ Gradle 캐시
 
-      # 🔐 Static Keys (OIDC 미사용)
+      # --------------------------
+      # Build (PR/Push 공통)
+      # --------------------------
+      - name: Build (Gradle)
+        run: |
+          ls -al "${{ matrix.path }}"
+          if [ -f "${{ matrix.path }}/gradlew" ]; then
+            chmod +x "${{ matrix.path }}/gradlew"
+            (cd "${{ matrix.path }}" && ./gradlew clean build -x test --no-daemon)
+          else
+            gradle -p "${{ matrix.path }}" clean build -x test --no-daemon
+          fi
+
+      # --------------------------
+      # 아래부터는 push(main) 전용
+      # --------------------------
       - name: Configure AWS credentials (Static Keys)
+        if: github.event_name == 'push'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -59,13 +81,16 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Who am I? (debug)
+        if: github.event_name == 'push'
         run: aws sts get-caller-identity
 
       - name: Login to Amazon ECR
+        if: github.event_name == 'push'
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Ensure ECR repository exists + keep only 1 image
+      - name: Ensure ECR repository exists + keep recent 5 images
+        if: github.event_name == 'push'
         env:
           REPO: ${{ env.PROJECT }}/${{ matrix.service }}
         run: |
@@ -80,46 +105,37 @@ jobs:
               "rules": [
                 {
                   "rulePriority": 1,
-                  "description": "keep only the most recent image",
+                  "description": "keep recent 5 images",
                   "selection": {
                     "tagStatus": "any",
                     "countType": "imageCountMoreThan",
-                    "countNumber": 1
+                    "countNumber": 5
                   },
                   "action": { "type": "expire" }
                 }
               ]
             }'
 
-      # ⛳ Gradle 빌드
-      - name: Build (Gradle)
-        run: |
-          ls -al "${{ matrix.path }}"
-          if [ -f "${{ matrix.path }}/gradlew" ]; then
-            chmod +x "${{ matrix.path }}/gradlew"
-            (cd "${{ matrix.path }}" && ./gradlew clean build -x test --no-daemon)
-          else
-            gradle -p "${{ matrix.path }}" clean build -x test --no-daemon
-          fi
-
-      # 🛠️ Buildx 명시 셋업 (안정성)
       - name: Setup Docker Buildx
+        if: github.event_name == 'push'
         uses: docker/setup-buildx-action@v3
 
-      # 🐳 Docker Build & Push (플랫폼 고정: linux/amd64)
-      - name: Build & Push Docker image
+      - name: Build & Push Docker image (linux/amd64)
+        if: github.event_name == 'push'
         id: bp
         uses: docker/build-push-action@v5
         with:
           context: ./${{ matrix.path }}
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64     # Graviton이면 linux/arm64로 맞춰 변경
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:latest
 
-      # 🚀 Deploy to ECS
       - name: Resolve image and names
+        if: github.event_name == 'push'
         id: vars
         env:
           REG: ${{ steps.login-ecr.outputs.registry }}
@@ -129,6 +145,7 @@ jobs:
           echo "cluster=${{ secrets.ECS_CLUSTER }}" >> $GITHUB_OUTPUT
 
       - name: Fetch current task definition (from service)
+        if: github.event_name == 'push'
         id: current
         run: |
           set -e
@@ -145,6 +162,7 @@ jobs:
             --query 'taskDefinition' > td.json
 
       - name: Patch image in task definition JSON
+        if: github.event_name == 'push'
         run: |
           sudo apt-get update && sudo apt-get install -y jq
           jq --arg NAME "${{ steps.vars.outputs.service }}" \
@@ -153,7 +171,6 @@ jobs:
              .containerDefinitions |= map(if .name==$NAME then .image=$IMG else . end)
              | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)
              ' td.json > td.new.json
-          # 포트 매핑 간단 검증(경고)
           EXP=${{ matrix.port }}
           ACT=$(jq -r --arg NAME "${{ steps.vars.outputs.service }}" '.containerDefinitions[] | select(.name==$NAME) | .portMappings[0].containerPort' td.json)
           if [ "$ACT" != "$EXP" ]; then
@@ -162,6 +179,7 @@ jobs:
           cat td.new.json | jq '.containerDefinitions[] | {name,image}'
 
       - name: Register new task definition
+        if: github.event_name == 'push'
         id: reg
         run: |
           NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://td.new.json \
@@ -169,6 +187,7 @@ jobs:
           echo "td_arn=$NEW_TD_ARN" >> $GITHUB_OUTPUT
 
       - name: Update ECS service (rolling, +grace 180s)
+        if: github.event_name == 'push'
         run: |
           aws ecs update-service \
             --cluster "${{ steps.vars.outputs.cluster }}" \
@@ -177,8 +196,8 @@ jobs:
             --health-check-grace-period-seconds 180 \
             --force-new-deployment
 
-      # ✅ 스마트 웨이터: 롤아웃/ALB 헬스 모니터링 + STOPPED 원인 출력
       - name: Wait until service & ALB healthy (smart waiter)
+        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
@@ -207,7 +226,6 @@ jobs:
 
             echo "[$i/$LOOPS] rollout=$ROLL running=$RUN desired=$DES health=$HEALTH_OK"
 
-            # 🔎 RUNNING=0일 때는 즉시 STOPPED 태스크 이유를 덤프(진단 가속)
             if [ "$RUN" -eq 0 ]; then
               STOP=$(aws ecs list-tasks --cluster "$CL" --service-name "$SV" --desired-status STOPPED --query 'taskArns' --output text || true)
               if [ -n "$STOP" ] && [ "$STOP" != "None" ]; then
@@ -231,7 +249,6 @@ jobs:
             aws elbv2 describe-target-health --target-group-arn "$TG" \
               --query 'TargetHealthDescriptions[].{Id:Target.Id,State:TargetHealth.State,Reason:TargetHealth.Reason,Desc:TargetHealth.Description}'
           fi
-          # 최근 앱 로그 80줄
           LG="/ecs/$SV"
           LS=$(aws logs describe-log-streams --log-group-name "$LG" --order-by LastEventTime --descending --max-items 1 --query 'logStreams[0].logStreamName' --output text || true)
           if [ -n "$LS" ] && [ "$LS" != "None" ]; then
@@ -239,5 +256,3 @@ jobs:
             aws logs get-log-events --log-group-name "$LG" --log-stream-name "$LS" --limit 80 --query 'events[*].message' --output text || true
           fi
           exit 1
-
-
