@@ -1,27 +1,47 @@
 server:
-  port: 8083
+  # ECS에서 SERVER_PORT=8083 로 주입, 없으면 8083
+  port: ${SERVER_PORT:8083}
+  forward-headers-strategy: native
 
 spring:
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-    username: ${POSTGRES_USER}
-    password: ${POSTGRES_PASSWORD}
+    # ✅ Terraform이 SPRING_DATASOURCE_URL 로 주입
+    # 예) jdbc:postgresql://${module.rds.endpoint}:5432/${module.rds.db_name}?sslmode=require
+    url: ${SPRING_DATASOURCE_URL}
+    # ✅ RDS 관리형 시크릿에서 ECS가 주입
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # 초기 연결 지연 시 실패하지 않도록
+      initialization-fail-timeout: ${SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT:0}
 
   jpa:
     hibernate:
-      ddl-auto: create # 향후에 update로 수정바람
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     show-sql: true
     properties:
       hibernate:
         format_sql: true
     database-platform: org.hibernate.dialect.PostgreSQLDialect
 
+# ALB 헬스체크용 actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 external:
   weather:
-    url: "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst"
-    service-key: "wVTEulNe7szg24bFXQR97HNuuhLPsv7cyJrNUna3jrQ89YkWS5cm7%2FJvmv6Hbrq7sIYgIT0edqmbAf%2B8BQummQ%3D%3D"
-#    service-key: ${WEATHER_API_KEY}
+    # 기본값은 공공데이터포털 초단기예보, 필요시 ENV로 덮어쓰기
+    url: ${WEATHER_API_URL:http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst}
+    # 🔐 Secrets Manager → ECS secrets 로 주입됨 (Plaintext 값만 저장)
+    service-key: ${WEATHER_API_KEY}
 
 logging:
   level:
@@ -34,4 +54,3 @@ springdoc:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui.html
-
