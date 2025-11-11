@@ -14,3 +14,4 @@
 ## 🚩 주요 서비스
 
 ## 🧩 AWS Architecture
+<img width="4084" height="2004" alt="image" src="https://github.com/user-attachments/assets/0f512ab4-ed2b-40a5-a2d6-4590d0dcf0fc" />
