@@ -15,7 +15,7 @@ function Dashboard() {
     const refreshAccessToken = async () => {
         try {
             const res = await axios.post(
-                '/api/auth/refresh',
+                '${API_BASE}/auth/refresh',
                 {},
                 { withCredentials: true }
             );

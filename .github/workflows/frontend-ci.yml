@@ -1,184 +1,52 @@
-name: Deploy Frontend → S3 + CloudFront
+name: Deploy Frontend (CRA) to S3 + Invalidate CloudFront
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-concurrency:
-  group: deploy-frontend-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  AWS_REGION: ap-northeast-2   # S3 자격증명 리전(CloudFront는 글로벌)
-  FRONTEND_DIR: frontend
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-deploy.yml"
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-    env:
-      BUCKET: ${{ secrets.S3_BUCKET_NAME }}
-      # "auto" 또는 빈 값이면 자동 탐지 시도
-      DIST_ID_INPUT: ${{ secrets.CLOUDFRONT_DIST_ID }}
+
+    defaults:
+      run:
+        working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: "${{ env.FRONTEND_DIR }}/package-lock.json"
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install deps
-        working-directory: ${{ env.FRONTEND_DIR }}
+      - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        working-directory: ${{ env.FRONTEND_DIR }}
-        env:
-          CI: "false"  # 경고로 빌드 실패 방지(Vite/CRA 환경)
-          NODE_OPTIONS: "--max_old_space_size=4096"
-        run: npm run build
-
-      # 🔎 빌드 산출물 자동 탐지 (Vite/CRA/Next.js)
-      - name: Detect build output directory
-        id: detect
-        shell: bash
+      - name: Build (inject API base URL)
         run: |
-          set -e
-          CANDIDATES=("${FRONTEND_DIR}/dist" "${FRONTEND_DIR}/build" "${FRONTEND_DIR}/out")
-          for d in "${CANDIDATES[@]}"; do
-            if [ -d "$d" ]; then
-              echo "BUILD_DIR=$d" >> $GITHUB_ENV
-              echo "Found build dir: $d"
-              exit 0
-            fi
-          done
-          echo "❌ No known build dir found. Listing ${FRONTEND_DIR}/:"
-          ls -la "${FRONTEND_DIR}"
-          exit 1
+          echo "REACT_APP_API_BASE_URL=${{ secrets.API_BASE_URL }}" > .env.production
+          npm run build
 
-      - name: Show build dir
-        run: |
-          echo "Using BUILD_DIR=${BUILD_DIR}"
-          ls -la "${BUILD_DIR}"
-
-      - name: Configure AWS credentials (Static Keys)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Who am I? (debug)
-        run: aws sts get-caller-identity
-
-      - name: Sync to S3 (delete removed files)
+      - name: Upload build to S3
         run: |
-          test -n "${BUCKET}" || { echo "❌ S3 bucket env(BUCKET) is empty"; exit 1; }
-          aws s3 sync "${BUILD_DIR}" "s3://${BUCKET}/" \
-            --delete --exclude ".DS_Store" --exclude "*.map" --only-show-errors
+          aws s3 sync build s3://${{ secrets.S3_BUCKET_FRONTEND }} --delete
 
-      # HTML은 no-store (항상 최신)
-      - name: Set no-cache for index.html
+      - name: Invalidate CloudFront cache
         run: |
-          aws s3 cp "s3://${BUCKET}/index.html" "s3://${BUCKET}/index.html" \
-            --metadata-directive REPLACE \
-            --cache-control "no-store" \
-            --content-type "text/html" \
-            --only-show-errors
-
-      # 해시 파일(정적 자산)은 1년+immutable
-      - name: Long-cache for hashed assets
-        shell: bash
-        run: |
-          shopt -s globstar nullglob
-          for ext in js css svg png jpg jpeg webp woff woff2 ttf; do
-            for f in "${BUILD_DIR}"/**/*.${ext}; do
-              key="${f#${BUILD_DIR}/}"
-              aws s3 cp "$f" "s3://${BUCKET}/${key}" \
-                --metadata-directive REPLACE \
-                --cache-control "public, max-age=31536000, immutable" \
-                --only-show-errors
-            done
-          done
-
-      # ✅ CloudFront 배포 ID 검증 / 자동 탐지
-      - name: Resolve CloudFront distribution (verify or auto-detect)
-        id: cf
-        shell: bash
-        run: |
-          set -e
-          DIST_ID="${DIST_ID_INPUT}"
-          echo "Input DIST_ID='${DIST_ID}'  BUCKET='${BUCKET}'  AWS_REGION='${AWS_REGION}'"
-
-          # 0) 사전 지정 ID가 유효하면 그대로 사용
-          if [ -n "${DIST_ID}" ] && [ "${DIST_ID}" != "auto" ]; then
-            if aws cloudfront get-distribution --id "${DIST_ID}" >/dev/null 2>&1; then
-              DOMAIN=$(aws cloudfront get-distribution --id "${DIST_ID}" --query 'Distribution.DomainName' --output text)
-              echo "CF_DIST_ID=${DIST_ID}" >> $GITHUB_ENV
-              echo "CF_DOMAIN=${DOMAIN}"  >> $GITHUB_ENV
-              echo "Using preset distribution: ${DIST_ID} (${DOMAIN})"
-              exit 0
-            else
-              echo "Preset DIST_ID='${DIST_ID}' invalid. Try auto-detect."
-            fi
-          fi
-
-          # 1) 원본 후보 (OAC/정적웹 모든 케이스)
-          ORIGIN_CANDIDATES=(
-            "${BUCKET}.s3.${AWS_REGION}.amazonaws.com"
-            "${BUCKET}.s3.amazonaws.com"
-            "${BUCKET}.s3-website.${AWS_REGION}.amazonaws.com"
-            "${BUCKET}.s3-website-${AWS_REGION}.amazonaws.com"
-          )
-
-          for ORIG in "${ORIGIN_CANDIDATES[@]}"; do
-            DID=$(aws cloudfront list-distributions \
-              --query "DistributionList.Items[?contains(Origins.Items[].DomainName, \`${ORIG}\`)].Id | [0]" \
-              --output text)
-            if [ -n "$DID" ] && [ "$DID" != "None" ]; then
-              DOMAIN=$(aws cloudfront get-distribution --id "$DID" --query 'Distribution.DomainName' --output text)
-              echo "CF_DIST_ID=$DID" >> $GITHUB_ENV
-              echo "CF_DOMAIN=$DOMAIN" >> $GITHUB_ENV
-              echo "Auto-detected distribution: ${DID} (${DOMAIN}) via origin ${ORIG}"
-              exit 0
-            fi
-          done
-
-          echo "❌ Could not resolve CloudFront distribution for bucket='${BUCKET}'."
-          echo "Available distributions (Id / Domain / Origins):"
-          aws cloudfront list-distributions \
-            --query "DistributionList.Items[].{Id:Id,Domain:DomainName,Origins:join(', ', Origins.Items[].DomainName)}" \
-            --output table || true
-          exit 1
-
-      - name: Invalidate CloudFront (index + root)
-        shell: bash
-        run: |
-          set -e
-          test -n "${CF_DIST_ID}" || { echo "❌ CF_DIST_ID is empty"; exit 1; }
-          aws cloudfront create-invalidation --distribution-id "${CF_DIST_ID}" --paths "/index.html" "/"
-          echo "Created invalidation for ${CF_DIST_ID}"
-
-      - name: Wait invalidation & smoke test
-        shell: bash
-        run: |
-          set -e
-          test -n "${CF_DIST_ID}" || { echo "❌ CF_DIST_ID is empty"; exit 1; }
-          INV_ID=$(aws cloudfront list-invalidations --distribution-id "${CF_DIST_ID}" \
-                   --query 'InvalidationList.Items[0].Id' --output text)
-          until [ "$(aws cloudfront get-invalidation --distribution-id "${CF_DIST_ID}" --id "$INV_ID" \
-                    --query 'Invalidation.Status' --output text)" = "Completed" ]; do
-            sleep 5
-          done
-          if [ -z "${CF_DOMAIN}" ] || [ "${CF_DOMAIN}" = "None" ]; then
-            CF_DOMAIN=$(aws cloudfront get-distribution --id "${CF_DIST_ID}" --query 'Distribution.DomainName' --output text)
-          fi
-          code=$(curl -s -o /dev/null -w "%{http_code}" "https://${CF_DOMAIN}/")
-          echo "HTTP $code from https://${CF_DOMAIN}/"
-          test "$code" -eq 200
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/index.html" "/*"
