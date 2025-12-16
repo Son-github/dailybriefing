@@ -13,7 +13,7 @@ function WeatherCard() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        axios.get("${API_BASE}/weather/summary")
+        axios.get('${API_BASE}/weather/summary')
             .then((res) => {
                 const data = res.data;
                 setTemperature(data.temperature || "-");
