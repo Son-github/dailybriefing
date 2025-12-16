@@ -1,258 +1,258 @@
-name: Backend CI/CD → ECR + ECS
-
-on:
-  push:
-    branches: [ "main" ]
-    paths:
-      - "backend/*-service/**"
-      - "!backend/news-service/sentiment/**"
-      - ".github/workflows/backend-ci.yml"
-  pull_request:
-    paths:
-      - "backend/*-service/**"
-      - "!backend/news-service/sentiment/**"
-  workflow_dispatch:
-
-env:
-  AWS_REGION: ap-northeast-2
-  PROJECT: dailybriefing
-
-permissions:
-  contents: read
-
-jobs:
-  build-push-deploy:
-    runs-on: ubuntu-latest
-    # 서비스별로 병렬 실행하되, 같은 서비스에 대한 중복 실행은 막음
-    concurrency:
-      group: ${{ github.workflow }}-${{ matrix.service }}
-      cancel-in-progress: false
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service: auth-service
-            path: backend/auth-service
-            port: 8081
-          - service: exchange-service
-            path: backend/exchange-service
-            port: 8082
-          - service: news-service
-            path: backend/news-service/backend
-            port: 8084
-          - service: weather-service
-            path: backend/weather-service
-            port: 8083
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: 'gradle'   # ✅ Gradle 캐시
-
-      # --------------------------
-      # Build (PR/Push 공통)
-      # --------------------------
-      - name: Build (Gradle)
-        run: |
-          ls -al "${{ matrix.path }}"
-          if [ -f "${{ matrix.path }}/gradlew" ]; then
-            chmod +x "${{ matrix.path }}/gradlew"
-            (cd "${{ matrix.path }}" && ./gradlew clean build -x test --no-daemon)
-          else
-            gradle -p "${{ matrix.path }}" clean build -x test --no-daemon
-          fi
-
-      # --------------------------
-      # 아래부터는 push(main) 전용
-      # --------------------------
-      - name: Configure AWS credentials (Static Keys)
-        if: github.event_name == 'push'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Who am I? (debug)
-        if: github.event_name == 'push'
-        run: aws sts get-caller-identity
-
-      - name: Login to Amazon ECR
-        if: github.event_name == 'push'
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Ensure ECR repository exists + keep recent 5 images
-        if: github.event_name == 'push'
-        env:
-          REPO: ${{ env.PROJECT }}/${{ matrix.service }}
-        run: |
-          set -e
-          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
-          aws ecr create-repository --repository-name "$REPO" \
-            --image-scanning-configuration scanOnPush=true \
-            --encryption-configuration encryptionType=AES256
-          aws ecr put-lifecycle-policy \
-            --repository-name "$REPO" \
-            --lifecycle-policy-text '{
-              "rules": [
-                {
-                  "rulePriority": 1,
-                  "description": "keep recent 5 images",
-                  "selection": {
-                    "tagStatus": "any",
-                    "countType": "imageCountMoreThan",
-                    "countNumber": 5
-                  },
-                  "action": { "type": "expire" }
-                }
-              ]
-            }'
-
-      - name: Setup Docker Buildx
-        if: github.event_name == 'push'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build & Push Docker image (linux/amd64)
-        if: github.event_name == 'push'
-        id: bp
-        uses: docker/build-push-action@v5
-        with:
-          context: ./${{ matrix.path }}
-          push: true
-          platforms: linux/amd64     # Graviton이면 linux/arm64로 맞춰 변경
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:latest
-
-      - name: Resolve image and names
-        if: github.event_name == 'push'
-        id: vars
-        env:
-          REG: ${{ steps.login-ecr.outputs.registry }}
-        run: |
-          echo "image=${REG}/${{ env.PROJECT }}/${{ matrix.service }}:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "service=${{ matrix.service }}" >> $GITHUB_OUTPUT
-          echo "cluster=${{ secrets.ECS_CLUSTER }}" >> $GITHUB_OUTPUT
-
-      - name: Fetch current task definition (from service)
-        if: github.event_name == 'push'
-        id: current
-        run: |
-          set -e
-          TD_ARN=$(aws ecs describe-services \
-            --cluster "${{ steps.vars.outputs.cluster }}" \
-            --services "${{ steps.vars.outputs.service }}" \
-            --query 'services[0].taskDefinition' --output text || echo "")
-          if [ -z "$TD_ARN" ] || [ "$TD_ARN" = "None" ]; then
-            echo "❌ No such ECS service: ${{ steps.vars.outputs.service }}"
-            exit 1
-          fi
-          echo "td_arn=$TD_ARN" >> $GITHUB_OUTPUT
-          aws ecs describe-task-definition --task-definition "$TD_ARN" \
-            --query 'taskDefinition' > td.json
-
-      - name: Patch image in task definition JSON
-        if: github.event_name == 'push'
-        run: |
-          sudo apt-get update && sudo apt-get install -y jq
-          jq --arg NAME "${{ steps.vars.outputs.service }}" \
-             --arg IMG  "${{ steps.vars.outputs.image }}" \
-             '
-             .containerDefinitions |= map(if .name==$NAME then .image=$IMG else . end)
-             | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)
-             ' td.json > td.new.json
-          EXP=${{ matrix.port }}
-          ACT=$(jq -r --arg NAME "${{ steps.vars.outputs.service }}" '.containerDefinitions[] | select(.name==$NAME) | .portMappings[0].containerPort' td.json)
-          if [ "$ACT" != "$EXP" ]; then
-            echo "⚠️  Port mismatch: taskDef=$ACT vs matrix=$EXP (확인 필요)"
-          fi
-          cat td.new.json | jq '.containerDefinitions[] | {name,image}'
-
-      - name: Register new task definition
-        if: github.event_name == 'push'
-        id: reg
-        run: |
-          NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://td.new.json \
-            --query 'taskDefinition.taskDefinitionArn' --output text)
-          echo "td_arn=$NEW_TD_ARN" >> $GITHUB_OUTPUT
-
-      - name: Update ECS service (rolling, +grace 180s)
-        if: github.event_name == 'push'
-        run: |
-          aws ecs update-service \
-            --cluster "${{ steps.vars.outputs.cluster }}" \
-            --service "${{ steps.vars.outputs.service }}" \
-            --task-definition "${{ steps.reg.outputs.td_arn }}" \
-            --health-check-grace-period-seconds 180 \
-            --force-new-deployment
-
-      - name: Wait until service & ALB healthy (smart waiter)
-        if: github.event_name == 'push'
-        shell: bash
-        run: |
-          set -euo pipefail
-          CL="${{ steps.vars.outputs.cluster }}"
-          SV="${{ steps.vars.outputs.service }}"
-          MAX_MINUTES=20
-          SLEEP=15
-          LOOPS=$(( (MAX_MINUTES*60)/SLEEP ))
-
-          TG=$(aws ecs describe-services --cluster "$CL" --services "$SV" --query 'services[0].loadBalancers[0].targetGroupArn' --output text)
-          echo "TargetGroup: $TG"
-
-          for (( i=1; i<=LOOPS; i++ )); do
-            SVC_JSON=$(aws ecs describe-services --cluster "$CL" --services "$SV")
-            RUN=$(echo "$SVC_JSON"  | jq -r '.services[0].runningCount')
-            DES=$(echo "$SVC_JSON"  | jq -r '.services[0].desiredCount')
-            ROLL=$(echo "$SVC_JSON" | jq -r '.services[0].deployments[] | select(.status=="PRIMARY") | .rolloutState' || echo "UNKNOWN")
-
-            HEALTH_OK=true
-            if [ "$TG" != "None" ]; then
-              STATES=$(aws elbv2 describe-target-health --target-group-arn "$TG" --query 'TargetHealthDescriptions[].TargetHealth.State' --output text || true)
-              for st in $STATES; do
-                if [ "$st" != "healthy" ]; then HEALTH_OK=false; fi
-              done
-            fi
-
-            echo "[$i/$LOOPS] rollout=$ROLL running=$RUN desired=$DES health=$HEALTH_OK"
-
-            if [ "$RUN" -eq 0 ]; then
-              STOP=$(aws ecs list-tasks --cluster "$CL" --service-name "$SV" --desired-status STOPPED --query 'taskArns' --output text || true)
-              if [ -n "$STOP" ] && [ "$STOP" != "None" ]; then
-                echo "---- STOPPED tasks details ----"
-                aws ecs describe-tasks --cluster "$CL" --tasks $STOP \
-                  --query 'tasks[].{StoppedReason:stoppedReason,Containers:containers[*].reason}'
-              fi
-            fi
-
-            if [ "$ROLL" = "COMPLETED" ] && [ "$RUN" -eq "$DES" ] && [ "$HEALTH_OK" = true ]; then
-              echo "✅ Service is stable and healthy."
-              exit 0
-            fi
-            sleep "$SLEEP"
-          done
-
-          echo "❌ Service did not become healthy within ${MAX_MINUTES}m. Dumping diagnostics..."
-          aws ecs describe-services --cluster "$CL" --services "$SV" \
-            --query 'services[0].events[0:10].[createdAt,message]'
-          if [ "$TG" != "None" ]; then
-            aws elbv2 describe-target-health --target-group-arn "$TG" \
-              --query 'TargetHealthDescriptions[].{Id:Target.Id,State:TargetHealth.State,Reason:TargetHealth.Reason,Desc:TargetHealth.Description}'
-          fi
-          LG="/ecs/$SV"
-          LS=$(aws logs describe-log-streams --log-group-name "$LG" --order-by LastEventTime --descending --max-items 1 --query 'logStreams[0].logStreamName' --output text || true)
-          if [ -n "$LS" ] && [ "$LS" != "None" ]; then
-            echo "---- last 80 log lines ----"
-            aws logs get-log-events --log-group-name "$LG" --log-stream-name "$LS" --limit 80 --query 'events[*].message' --output text || true
-          fi
-          exit 1
+#name: Backend CI/CD → ECR + ECS
+#
+#on:
+#  push:
+#    branches: [ "main" ]
+#    paths:
+#      - "backend/*-service/**"
+#      - "!backend/news-service/sentiment/**"
+#      - ".github/workflows/backend-ci.yml"
+#  pull_request:
+#    paths:
+#      - "backend/*-service/**"
+#      - "!backend/news-service/sentiment/**"
+#  workflow_dispatch:
+#
+#env:
+#  AWS_REGION: ap-northeast-2
+#  PROJECT: dailybriefing
+#
+#permissions:
+#  contents: read
+#
+#jobs:
+#  build-push-deploy:
+#    runs-on: ubuntu-latest
+#    # 서비스별로 병렬 실행하되, 같은 서비스에 대한 중복 실행은 막음
+#    concurrency:
+#      group: ${{ github.workflow }}-${{ matrix.service }}
+#      cancel-in-progress: false
+#
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        include:
+#          - service: auth-service
+#            path: backend/auth-service
+#            port: 8081
+#          - service: exchange-service
+#            path: backend/exchange-service
+#            port: 8082
+#          - service: news-service
+#            path: backend/news-service/backend
+#            port: 8084
+#          - service: weather-service
+#            path: backend/weather-service
+#            port: 8083
+#
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#
+#      - name: Setup JDK
+#        uses: actions/setup-java@v4
+#        with:
+#          distribution: temurin
+#          java-version: '21'
+#          cache: 'gradle'   # ✅ Gradle 캐시
+#
+#      # --------------------------
+#      # Build (PR/Push 공통)
+#      # --------------------------
+#      - name: Build (Gradle)
+#        run: |
+#          ls -al "${{ matrix.path }}"
+#          if [ -f "${{ matrix.path }}/gradlew" ]; then
+#            chmod +x "${{ matrix.path }}/gradlew"
+#            (cd "${{ matrix.path }}" && ./gradlew clean build -x test --no-daemon)
+#          else
+#            gradle -p "${{ matrix.path }}" clean build -x test --no-daemon
+#          fi
+#
+#      # --------------------------
+#      # 아래부터는 push(main) 전용
+#      # --------------------------
+#      - name: Configure AWS credentials (Static Keys)
+#        if: github.event_name == 'push'
+#        uses: aws-actions/configure-aws-credentials@v4
+#        with:
+#          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#          aws-region: ${{ env.AWS_REGION }}
+#
+#      - name: Who am I? (debug)
+#        if: github.event_name == 'push'
+#        run: aws sts get-caller-identity
+#
+#      - name: Login to Amazon ECR
+#        if: github.event_name == 'push'
+#        id: login-ecr
+#        uses: aws-actions/amazon-ecr-login@v2
+#
+#      - name: Ensure ECR repository exists + keep recent 5 images
+#        if: github.event_name == 'push'
+#        env:
+#          REPO: ${{ env.PROJECT }}/${{ matrix.service }}
+#        run: |
+#          set -e
+#          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 || \
+#          aws ecr create-repository --repository-name "$REPO" \
+#            --image-scanning-configuration scanOnPush=true \
+#            --encryption-configuration encryptionType=AES256
+#          aws ecr put-lifecycle-policy \
+#            --repository-name "$REPO" \
+#            --lifecycle-policy-text '{
+#              "rules": [
+#                {
+#                  "rulePriority": 1,
+#                  "description": "keep recent 5 images",
+#                  "selection": {
+#                    "tagStatus": "any",
+#                    "countType": "imageCountMoreThan",
+#                    "countNumber": 5
+#                  },
+#                  "action": { "type": "expire" }
+#                }
+#              ]
+#            }'
+#
+#      - name: Setup Docker Buildx
+#        if: github.event_name == 'push'
+#        uses: docker/setup-buildx-action@v3
+#
+#      - name: Build & Push Docker image (linux/amd64)
+#        if: github.event_name == 'push'
+#        id: bp
+#        uses: docker/build-push-action@v5
+#        with:
+#          context: ./${{ matrix.path }}
+#          push: true
+#          platforms: linux/amd64     # Graviton이면 linux/arm64로 맞춰 변경
+#          cache-from: type=gha
+#          cache-to: type=gha,mode=max
+#          tags: |
+#            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:${{ github.sha }}
+#            ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/${{ matrix.service }}:latest
+#
+#      - name: Resolve image and names
+#        if: github.event_name == 'push'
+#        id: vars
+#        env:
+#          REG: ${{ steps.login-ecr.outputs.registry }}
+#        run: |
+#          echo "image=${REG}/${{ env.PROJECT }}/${{ matrix.service }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+#          echo "service=${{ matrix.service }}" >> $GITHUB_OUTPUT
+#          echo "cluster=${{ secrets.ECS_CLUSTER }}" >> $GITHUB_OUTPUT
+#
+#      - name: Fetch current task definition (from service)
+#        if: github.event_name == 'push'
+#        id: current
+#        run: |
+#          set -e
+#          TD_ARN=$(aws ecs describe-services \
+#            --cluster "${{ steps.vars.outputs.cluster }}" \
+#            --services "${{ steps.vars.outputs.service }}" \
+#            --query 'services[0].taskDefinition' --output text || echo "")
+#          if [ -z "$TD_ARN" ] || [ "$TD_ARN" = "None" ]; then
+#            echo "❌ No such ECS service: ${{ steps.vars.outputs.service }}"
+#            exit 1
+#          fi
+#          echo "td_arn=$TD_ARN" >> $GITHUB_OUTPUT
+#          aws ecs describe-task-definition --task-definition "$TD_ARN" \
+#            --query 'taskDefinition' > td.json
+#
+#      - name: Patch image in task definition JSON
+#        if: github.event_name == 'push'
+#        run: |
+#          sudo apt-get update && sudo apt-get install -y jq
+#          jq --arg NAME "${{ steps.vars.outputs.service }}" \
+#             --arg IMG  "${{ steps.vars.outputs.image }}" \
+#             '
+#             .containerDefinitions |= map(if .name==$NAME then .image=$IMG else . end)
+#             | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)
+#             ' td.json > td.new.json
+#          EXP=${{ matrix.port }}
+#          ACT=$(jq -r --arg NAME "${{ steps.vars.outputs.service }}" '.containerDefinitions[] | select(.name==$NAME) | .portMappings[0].containerPort' td.json)
+#          if [ "$ACT" != "$EXP" ]; then
+#            echo "⚠️  Port mismatch: taskDef=$ACT vs matrix=$EXP (확인 필요)"
+#          fi
+#          cat td.new.json | jq '.containerDefinitions[] | {name,image}'
+#
+#      - name: Register new task definition
+#        if: github.event_name == 'push'
+#        id: reg
+#        run: |
+#          NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://td.new.json \
+#            --query 'taskDefinition.taskDefinitionArn' --output text)
+#          echo "td_arn=$NEW_TD_ARN" >> $GITHUB_OUTPUT
+#
+#      - name: Update ECS service (rolling, +grace 180s)
+#        if: github.event_name == 'push'
+#        run: |
+#          aws ecs update-service \
+#            --cluster "${{ steps.vars.outputs.cluster }}" \
+#            --service "${{ steps.vars.outputs.service }}" \
+#            --task-definition "${{ steps.reg.outputs.td_arn }}" \
+#            --health-check-grace-period-seconds 180 \
+#            --force-new-deployment
+#
+#      - name: Wait until service & ALB healthy (smart waiter)
+#        if: github.event_name == 'push'
+#        shell: bash
+#        run: |
+#          set -euo pipefail
+#          CL="${{ steps.vars.outputs.cluster }}"
+#          SV="${{ steps.vars.outputs.service }}"
+#          MAX_MINUTES=20
+#          SLEEP=15
+#          LOOPS=$(( (MAX_MINUTES*60)/SLEEP ))
+#
+#          TG=$(aws ecs describe-services --cluster "$CL" --services "$SV" --query 'services[0].loadBalancers[0].targetGroupArn' --output text)
+#          echo "TargetGroup: $TG"
+#
+#          for (( i=1; i<=LOOPS; i++ )); do
+#            SVC_JSON=$(aws ecs describe-services --cluster "$CL" --services "$SV")
+#            RUN=$(echo "$SVC_JSON"  | jq -r '.services[0].runningCount')
+#            DES=$(echo "$SVC_JSON"  | jq -r '.services[0].desiredCount')
+#            ROLL=$(echo "$SVC_JSON" | jq -r '.services[0].deployments[] | select(.status=="PRIMARY") | .rolloutState' || echo "UNKNOWN")
+#
+#            HEALTH_OK=true
+#            if [ "$TG" != "None" ]; then
+#              STATES=$(aws elbv2 describe-target-health --target-group-arn "$TG" --query 'TargetHealthDescriptions[].TargetHealth.State' --output text || true)
+#              for st in $STATES; do
+#                if [ "$st" != "healthy" ]; then HEALTH_OK=false; fi
+#              done
+#            fi
+#
+#            echo "[$i/$LOOPS] rollout=$ROLL running=$RUN desired=$DES health=$HEALTH_OK"
+#
+#            if [ "$RUN" -eq 0 ]; then
+#              STOP=$(aws ecs list-tasks --cluster "$CL" --service-name "$SV" --desired-status STOPPED --query 'taskArns' --output text || true)
+#              if [ -n "$STOP" ] && [ "$STOP" != "None" ]; then
+#                echo "---- STOPPED tasks details ----"
+#                aws ecs describe-tasks --cluster "$CL" --tasks $STOP \
+#                  --query 'tasks[].{StoppedReason:stoppedReason,Containers:containers[*].reason}'
+#              fi
+#            fi
+#
+#            if [ "$ROLL" = "COMPLETED" ] && [ "$RUN" -eq "$DES" ] && [ "$HEALTH_OK" = true ]; then
+#              echo "✅ Service is stable and healthy."
+#              exit 0
+#            fi
+#            sleep "$SLEEP"
+#          done
+#
+#          echo "❌ Service did not become healthy within ${MAX_MINUTES}m. Dumping diagnostics..."
+#          aws ecs describe-services --cluster "$CL" --services "$SV" \
+#            --query 'services[0].events[0:10].[createdAt,message]'
+#          if [ "$TG" != "None" ]; then
+#            aws elbv2 describe-target-health --target-group-arn "$TG" \
+#              --query 'TargetHealthDescriptions[].{Id:Target.Id,State:TargetHealth.State,Reason:TargetHealth.Reason,Desc:TargetHealth.Description}'
+#          fi
+#          LG="/ecs/$SV"
+#          LS=$(aws logs describe-log-streams --log-group-name "$LG" --order-by LastEventTime --descending --max-items 1 --query 'logStreams[0].logStreamName' --output text || true)
+#          if [ -n "$LS" ] && [ "$LS" != "None" ]; then
+#            echo "---- last 80 log lines ----"
+#            aws logs get-log-events --log-group-name "$LG" --log-stream-name "$LS" --limit 80 --query 'events[*].message' --output text || true
+#          fi
+#          exit 1
