@@ -41,7 +41,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
                         // ✅ ALB 헬스체크
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
 
                         // ✅ Swagger (있으면)
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll()
@@ -65,7 +65,11 @@ public class SecurityConfig {
         CorsConfiguration cfg = new CorsConfiguration();
 
         // 콤마로 여러개 받을 수 있게
-        List<String> origins = List.of(allowedOrigins.split(","));
+        List<String> origins = List.of(allowedOrigins.split(","))
+                .stream()
+                .map(String::trim)
+                .toList();
+        cfg.setAllowedOrigins(origins);
         cfg.setAllowedOrigins(origins);
 
         cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));

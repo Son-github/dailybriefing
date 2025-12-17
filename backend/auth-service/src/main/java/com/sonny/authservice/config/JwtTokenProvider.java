@@ -9,7 +9,7 @@ import java.util.Date;
 @Component
 @RequiredArgsConstructor
 public class JwtTokenProvider {
-    @Value("${jwt.secret}")
+    @Value("${spring.jwt.secret}")
     private String secret;
 
     private final long accessTokenValidity = 1000L * 60 * 30;
