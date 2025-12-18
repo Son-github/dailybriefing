@@ -3,12 +3,14 @@ name: Deploy Frontend (CRA) to S3 + Invalidate CloudFront
 on:
   push:
     branches: [ "main" ]
-    paths:
-      - "frontend/**"
-      - ".github/workflows/frontend-deploy.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: frontend-deploy
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -19,7 +21,7 @@ jobs:
         working-directory: frontend
 
     env:
-      AWS_REGION: ap-northeast-2  # ✅ secrets에 없어도 되게 고정(최소 오류)
+      AWS_REGION: ap-northeast-2
 
     steps:
       - name: Checkout
@@ -38,8 +40,6 @@ jobs:
       - name: Build (inject API base URL)
         run: |
           echo "REACT_APP_API_BASE_URL=${{ secrets.API_BASE_URL }}" > .env.production
-          echo "[debug] .env.production:"
-          cat .env.production
           CI=false npm run build
 
       - name: Configure AWS credentials
@@ -49,13 +49,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Debug AWS identity
-        run: |
-          aws sts get-caller-identity
-
       - name: Upload build to S3
         run: |
-          test -d build
           aws s3 sync build "s3://${{ secrets.S3_BUCKET_FRONTEND }}" --delete
 
       - name: Invalidate CloudFront cache
