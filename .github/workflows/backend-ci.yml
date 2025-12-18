@@ -88,8 +88,8 @@ jobs:
           ECS_CLUSTER: ${{ env.CLUSTER_NAME }}
           ECS_SERVICE: ${{ env.ECS_SERVICE_NAME }}
         run: |
-          # 5분 안에 안정화가 안 되면 실패 처리
-          timeout 300 aws ecs wait services-stable \
+          # 10분 안에 안정화가 안 되면 실패 처리
+          timeout 600 aws ecs wait services-stable \
             --cluster "${ECS_CLUSTER}" \
             --services "${ECS_SERVICE}"
 
