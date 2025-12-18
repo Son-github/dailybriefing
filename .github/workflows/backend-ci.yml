@@ -24,6 +24,9 @@ env:
 
   ECR_REPO_PREFIX: 953013523670.dkr.ecr.ap-northeast-2.amazonaws.com/dailybriefing
 
+  # ✅ (중요) auth-service Target Group ARN 넣기 (너가 가지고 있는 값)
+  AUTH_TG_ARN: arn:aws:elasticloadbalancing:ap-northeast-2:953013523670:targetgroup/dailybriefing-auth-service/e88b3295819ebffa
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -52,6 +55,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Debug - AWS identity
+        run: |
+          aws sts get-caller-identity
+
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
@@ -76,11 +83,75 @@ jobs:
             --service "${ECS_SERVICE}" \
             --force-new-deployment
 
-      - name: Wait for service stability
+      - name: Wait for service stability (with timeout)
         env:
           ECS_CLUSTER: ${{ env.CLUSTER_NAME }}
           ECS_SERVICE: ${{ env.ECS_SERVICE_NAME }}
         run: |
-          aws ecs wait services-stable \
+          # 10분 안에 안정화가 안 되면 실패 처리
+          timeout 600 aws ecs wait services-stable \
             --cluster "${ECS_CLUSTER}" \
             --services "${ECS_SERVICE}"
+
+      # ✅ 성공 시에도 Target Group health를 한번 출력
+      - name: Show Target Group health (after success)
+        if: success()
+        env:
+          TG_ARN: ${{ env.AUTH_TG_ARN }}
+        run: |
+          echo "==== Target Group Health (success) ===="
+          aws elbv2 describe-target-health \
+            --target-group-arn "${TG_ARN}" \
+            --output json
+
+      # ❌ 실패 시: ECS 서비스 이벤트(가장 중요)
+      - name: Debug - ECS service events (on failure)
+        if: failure()
+        env:
+          ECS_CLUSTER: ${{ env.CLUSTER_NAME }}
+          ECS_SERVICE: ${{ env.ECS_SERVICE_NAME }}
+        run: |
+          echo "==== ECS Service Describe (events) ===="
+          aws ecs describe-services \
+            --cluster "${ECS_CLUSTER}" \
+            --services "${ECS_SERVICE}" \
+            --query "services[0].{status:status,desired:desiredCount,running:runningCount,pending:pendingCount,events:events[0:15]}" \
+            --output json
+
+      # ❌ 실패 시: Target Group health(헬스체크 실패 이유가 여기에 보임)
+      - name: Debug - Target Group health (on failure)
+        if: failure()
+        env:
+          TG_ARN: ${{ env.AUTH_TG_ARN }}
+        run: |
+          echo "==== Target Group Health (failure) ===="
+          aws elbv2 describe-target-health \
+            --target-group-arn "${TG_ARN}" \
+            --output json
+
+      # ❌ 실패 시: STOPPED 태스크의 종료 사유/exitCode
+      - name: Debug - Recent stopped tasks (on failure)
+        if: failure()
+        env:
+          ECS_CLUSTER: ${{ env.CLUSTER_NAME }}
+          ECS_SERVICE: ${{ env.ECS_SERVICE_NAME }}
+        run: |
+          echo "==== Recent STOPPED Tasks ===="
+          TASK_ARNS=$(aws ecs list-tasks \
+            --cluster "${ECS_CLUSTER}" \
+            --service-name "${ECS_SERVICE}" \
+            --desired-status STOPPED \
+            --max-results 5 \
+            --query "taskArns[]" \
+            --output text)
+
+          if [ -z "${TASK_ARNS}" ]; then
+            echo "No stopped tasks found."
+            exit 0
+          fi
+
+          aws ecs describe-tasks \
+            --cluster "${ECS_CLUSTER}" \
+            --tasks ${TASK_ARNS} \
+            --query "tasks[].{taskArn:taskArn,stoppedReason:stoppedReason,stopCode:stopCode,containers:containers[].{name:name,exitCode:exitCode,reason:reason,lastStatus:lastStatus}}" \
+            --output json
