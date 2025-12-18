@@ -16,6 +16,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -24,7 +25,6 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
 
-    // 운영에서는 CloudFront 도메인 넣고, 개발은 localhost 허용
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
     private String allowedOrigins;
 
@@ -40,21 +40,12 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
-                        // ✅ ALB 헬스체크
                         .requestMatchers("/actuator/**").permitAll()
-
-                        // ✅ Swagger (있으면)
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll()
-
-                        // ✅ auth API 경로: 네가 선택지 A로 /auth로 간다고 했으니 이게 맞음
                         .requestMatchers("/auth/**").permitAll()
-
-                        // preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
                         .anyRequest().authenticated()
                 )
-                // ✅ JWT 필터 연결(있어야 보호 API에서 토큰 인증이 됨)
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -64,14 +55,19 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
 
-        // 콤마로 여러개 받을 수 있게
-        List<String> origins = List.of(allowedOrigins.split(","))
-                .stream()
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
+                .filter(s -> !s.isBlank())
                 .toList();
-        cfg.setAllowedOrigins(origins);
-        cfg.setAllowedOrigins(origins);
 
+        // ✅ allowCredentials(true)일 때 "*" 금지 → AWS에서 잘못 들어와도 안 죽게 방어
+        if (origins.contains("*")) {
+            // "*" 들어오면 CORS를 널널하게 열지 말고, 그냥 빈 리스트로 두고(=사실상 CORS 미허용)
+            // 서비스 부팅/헬스체크가 먼저 살아야 하니까 "안 죽는 방향"으로 처리
+            origins = List.of();
+        }
+
+        cfg.setAllowedOrigins(origins); // ✅ 1번만!
         cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
         cfg.setAllowCredentials(true);
