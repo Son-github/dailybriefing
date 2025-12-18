@@ -45,7 +45,7 @@ management:
 logging:
   level:
     org.hibernate.SQL: debug
-    org.hibernate.type.descriptor.sql: trace
+    org.hibernate.type.descriptor.sql: off
     org.springframework.security: info
 
 springdoc:
