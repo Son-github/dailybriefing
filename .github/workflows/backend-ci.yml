@@ -9,7 +9,7 @@ on:
 
 env:
   AWS_REGION: ap-northeast-2
-  SERVICE_NAME: auth-service
+  SERVICE_NAME: dailybriefing-auth-service
   CLUSTER_NAME: dailybriefing-cluster
 
   # 너가 기억해둔 ECR prefix 그대로 사용
