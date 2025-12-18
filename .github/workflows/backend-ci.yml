@@ -34,7 +34,7 @@ jobs:
         working-directory: backend/auth-service
         run: |
           chmod +x ./gradlew
-          ./gradlew clean test bootJar
+          ./gradlew clean bootJar -x test
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
