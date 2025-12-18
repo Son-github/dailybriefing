@@ -6,13 +6,21 @@ on:
     paths:
       - "backend/auth-service/**"
       - ".github/workflows/deploy-auth-service.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-service-deploy
+  cancel-in-progress: true
 
 env:
   AWS_REGION: ap-northeast-2
   CLUSTER_NAME: dailybriefing-cluster
 
-  ECS_SERVICE_NAME: dailybriefing-auth-service   # ✅ ECS 서비스 이름(업데이트에 사용)
-  IMAGE_NAME: auth-service                       # ✅ ECR 리포지토리 이름(푸시에 사용)
+  ECS_SERVICE_NAME: dailybriefing-auth-service
+  IMAGE_NAME: auth-service
 
   ECR_REPO_PREFIX: 953013523670.dkr.ecr.ap-northeast-2.amazonaws.com/dailybriefing
 
@@ -50,14 +58,14 @@ jobs:
       - name: Build and Push Docker image (latest + sha)
         working-directory: backend/auth-service
         env:
-          IMAGE_URI: ${{ env.ECR_REPO_PREFIX }}/${{ env.SERVICE_NAME }}
+          IMAGE_URI: ${{ env.ECR_REPO_PREFIX }}/${{ env.IMAGE_NAME }}
           GIT_SHA: ${{ github.sha }}
         run: |
+          echo "IMAGE_URI=${IMAGE_URI}"
           docker build -t ${IMAGE_URI}:latest -t ${IMAGE_URI}:${GIT_SHA} .
           docker push ${IMAGE_URI}:latest
           docker push ${IMAGE_URI}:${GIT_SHA}
 
-      # ECS 서비스가 task definition에서 :latest 를 참조하고 있다는 전제
       - name: Force new deployment on ECS service
         env:
           ECS_CLUSTER: ${{ env.CLUSTER_NAME }}
@@ -71,9 +79,8 @@ jobs:
       - name: Wait for service stability
         env:
           ECS_CLUSTER: ${{ env.CLUSTER_NAME }}
-          ECS_SERVICE: ${{ env.SERVICE_NAME }}
+          ECS_SERVICE: ${{ env.ECS_SERVICE_NAME }}
         run: |
           aws ecs wait services-stable \
             --cluster "${ECS_CLUSTER}" \
             --services "${ECS_SERVICE}"
-
