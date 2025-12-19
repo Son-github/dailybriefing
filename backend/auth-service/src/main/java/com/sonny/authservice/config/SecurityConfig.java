@@ -35,6 +35,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        System.out.println("### SecurityConfig.filterChain LOADED ###");
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
