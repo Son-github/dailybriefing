@@ -38,7 +38,7 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain actuatorChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/auth/actuator/**")
+                .securityMatcher("/actuator/**", "/auth/actuator/**")
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.disable())
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
