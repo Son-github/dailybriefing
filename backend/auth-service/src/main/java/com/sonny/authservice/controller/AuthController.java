@@ -88,4 +88,9 @@ public class AuthController {
                 .message("재발급 완료")
                 .build());
     }
+
+    @GetMapping("/health")
+    public ResponseEntity<String> health() {
+        return ResponseEntity.ok("OK");
+    }
 }
