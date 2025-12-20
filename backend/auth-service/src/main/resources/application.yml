@@ -42,12 +42,15 @@ management:
     health:
       probes:
         enabled: true
+      show-details: always
 
 logging:
   level:
     org.hibernate.SQL: debug
     org.hibernate.type.descriptor.sql: off
-    org.springframework.security: debug
+    org.springframework.security: info
+    org.springframework.boot.actuate: debug
+    org.springframework.web: info
 
 springdoc:
   api-docs:
