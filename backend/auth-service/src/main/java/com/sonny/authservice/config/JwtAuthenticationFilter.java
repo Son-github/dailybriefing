@@ -23,12 +23,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        String uri = request.getRequestURI();
-        if (uri.startsWith("/auth/actuator/")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
         String token = resolveToken(request);
 
         if (token != null && tokenProvider.validateToken(token)) {
@@ -45,8 +39,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI();
-        return uri.startsWith("/actuator")
-                || uri.startsWith("/auth/actuator");
+        return uri.startsWith("/actuator/")
+                || uri.startsWith("/auth/actuator/");
     }
 
     private String resolveToken(HttpServletRequest request) {
