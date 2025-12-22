@@ -9,6 +9,7 @@ function LoginPage() {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
     const themeColor = '#f76d57';
+    const API_BASE = process.env.REACT_APP_API_URL;
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
@@ -20,7 +21,7 @@ function LoginPage() {
         setLoading(true);
         setError('');
         try {
-            const response = await fetch('${API_BASE}/auth/login', {
+            const response = await fetch(`${API_BASE}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
