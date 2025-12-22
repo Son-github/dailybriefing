@@ -31,6 +31,12 @@ function LoginPage() {
             console.log('Fetch status:', response.status);
             console.log('response:', response);
 
+            const ct = response.headers.get('content-type');
+            console.log('content-type:', ct);
+
+            const raw = await response.text();
+            console.log('raw body(0~200):', raw.slice(0, 200));
+
             // 응답이 JSON인지 확인!
             let data;
             try {
@@ -38,6 +44,7 @@ function LoginPage() {
             } catch {
                 throw new Error('서버에서 올바른 JSON이 내려오지 않았습니다.');
             }
+
             console.log('Fetch data:', data);
 
             if (!response.ok) {
