@@ -4,69 +4,61 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import WeatherCard from '../components/WeatherCard';
 import NewsCard from '../components/NewsCard';
+import ExchangeCard from '../components/ExchangeCard';
 import { jwtDecode } from 'jwt-decode';
-import axios from 'axios';
-import ExchangeCard from "../components/ExchangeCard";
+import { logout as logoutApi } from '../api/auth';
+import api from '../api/api';
 
 function Dashboard() {
     const navigate = useNavigate();
     const [userEmail, setUserEmail] = useState('');
 
-    const refreshAccessToken = async () => {
+    const handleLogout = async () => {
         try {
-            const res = await axios.post(
-                '${API_BASE}/auth/refresh',
-                {},
-                { withCredentials: true }
-            );
-            const { accessToken } = res.data;
-            localStorage.setItem('token', accessToken);
-            axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-            const decoded = jwtDecode(accessToken);
-            setUserEmail(decoded.email || '');
-        } catch (err) {
-            console.error('리프레시 실패:', err);
-            handleLogout();
+            await logoutApi(); // 서버 logout이 없어도 localStorage 제거는 수행됨(우리가 auth.js에 그렇게 구현)
+        } finally {
+            alert('로그아웃 되었습니다.');
+            navigate('/login');
         }
     };
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            try {
-                const decoded = jwtDecode(token);
-                const now = Date.now() / 1000;
-                if (decoded.exp < now) {
-                    refreshAccessToken();
-                } else {
-                    setUserEmail(decoded.email || '');
-                }
-            } catch (e) {
-                console.error('Invalid token:', e);
-                handleLogout();
-            }
-        } else {
+        // ✅ env 빠졌을 때 빠르게 알기
+        if (!process.env.REACT_APP_API_BASE_URL) {
+            console.error('REACT_APP_API_BASE_URL is not set');
             navigate('/login');
+            return;
+        }
+
+        const token = localStorage.getItem('token');
+        if (!token) {
+            navigate('/login');
+            return;
+        }
+
+        try {
+            const decoded = jwtDecode(token);
+            setUserEmail(decoded?.email || '');
+            // ✅ Authorization 헤더는 api.js의 request interceptor가 자동으로 붙임
+            // ✅ 만료되었어도 실제 API 호출 시 401 -> refresh -> 재시도를 api.js가 처리
+        } catch (e) {
+            console.error('Invalid token:', e);
+            handleLogout();
         }
         // eslint-disable-next-line
     }, []);
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        delete axios.defaults.headers.common['Authorization'];
-        alert('로그아웃 되었습니다.');
-        navigate('/login');
-    };
+    // (선택) 대시보드에서 사용자 정보 등을 실제로 호출하고 싶으면 여기서 api.get(...) 하면 됨
+    // api.get('/auth/me') 처럼 호출하면 401 대응/refresh는 자동 처리됨
 
     return (
         <Box sx={{ bgcolor: '#f7f7f7', minHeight: '100vh', pb: 4 }}>
-            {/* Header 패딩도 최소화 */}
             <Header sx={{ padding: '8px 0' }} />
-            <Container maxWidth="sm" sx={{ mt: 1 }}> {/* marginTop을 거의 없앰 */}
+            <Container maxWidth="sm" sx={{ mt: 1 }}>
                 <Stack spacing={2}>
-                    <WeatherCard />
-                    <ExchangeCard />
-                    <NewsCard />
+                    <WeatherCard api={api} />
+                    <ExchangeCard api={api} />
+                    <NewsCard api={api} />
                 </Stack>
             </Container>
         </Box>

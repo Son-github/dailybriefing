@@ -1,0 +1,80 @@
+server:
+  # Terraform(ECS)에서 SERVER_PORT 전달 → 없으면 8084
+  port: ${SERVER_PORT:8084}
+  forward-headers-strategy: native
+
+spring:
+  datasource:
+    # ✅ 운영: ECS가 Secrets/Env로 주입 (필수)
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      initialization-fail-timeout: ${SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT:0}
+
+  jpa:
+    hibernate:
+      ddl-auto: update    # 운영 안전 기본 (create-drop 금지)
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  # CloudFront → ALB CORS 대응 (필요 시 FRONTEND_ORIGIN으로 제한)
+  mvc:
+    cors:
+      mappings:
+        "[/**]":
+          # 운영은 보통 Same-Origin(CloudFront)로 가면 CORS가 거의 필요없지만,
+          # 혹시 분리 도메인/테스트를 위해 열어두려면 아래처럼 ENV로 통제
+          allowed-origins: ${CORS_ALLOWED_ORIGINS:${FRONTEND_ORIGIN:*}}
+          allowed-methods: "GET,POST,OPTIONS"
+          allowed-headers: "*"
+          allow-credentials: true
+
+# ALB Target Group 헬스체크: /actuator/health 로 200 응답
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+# ====== 뉴스/트렌드/NLP 설정 ======
+app:
+  news:
+    rss-url: ${NEWS_RSS_URL:https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko}
+    top-n: ${NEWS_TOP_N:10}
+    trend:
+      source-top-n: ${NEWS_TREND_SOURCE_TOP_N:50}   # ✅ 트렌드 계산에 사용할 뉴스 개수
+      max-keywords: ${NEWS_TREND_MAX_KEYWORDS:5}    # ✅ 화면에 보여줄 트렌드 키워드 수
+
+  nlp:
+    # ✅ news-nlp-service 내부 통신 주소 (ECS Service Discovery/CloudMap 권장)
+    base-url: ${NLP_BASE_URL:http://news-nlp-service:8090}
+
+  http:
+    connect-timeout-ms: ${HTTP_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${HTTP_READ_TIMEOUT_MS:5000}
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.type.descriptor.sql: trace
+    org.springframework.security: info
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html

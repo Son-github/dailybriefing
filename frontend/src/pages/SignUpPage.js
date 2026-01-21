@@ -1,39 +1,42 @@
 import React, { useState } from 'react';
 import { Box, Typography, TextField, Button, Link, Alert } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
+import { signup } from '../api/auth';
 
 function SignUpPage() {
     const [form, setForm] = useState({ email: '', password: '' });
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const themeColor = '#f76d57';
+    const navigate = useNavigate();
 
     const handleChange = (e) => {
         setForm({
             ...form,
-            [e.target.name]: e.target.value
+            [e.target.name]: e.target.value,
         });
         setError('');
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setLoading(true);
+        setError('');
+
         try {
-            const response = await fetch('${API_BASE}/auth/signup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(form)
-            });
-
-            if (!response.ok) {
-                const errorMessage = await response.text();
-                throw new Error(errorMessage || '회원가입 실패');
-            }
-
+            await signup(form.email, form.password);
             alert('회원가입 성공! 로그인 페이지로 이동합니다.');
-            window.location.href = '/login';
-        } catch (error) {
-            setError(error.message);
+            navigate('/login');
+        } catch (err) {
+            const msg =
+                err?.response?.data?.message ||
+                err?.response?.data?.error ||
+                err?.message ||
+                '회원가입 실패';
+            setError(msg);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -51,8 +54,10 @@ function SignUpPage() {
                     autoFocus
                     value={form.email}
                     onChange={handleChange}
+                    disabled={loading}
                     sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
                 />
+
                 <TextField
                     margin="normal"
                     required
@@ -64,6 +69,7 @@ function SignUpPage() {
                     autoComplete="new-password"
                     value={form.password}
                     onChange={handleChange}
+                    disabled={loading}
                     sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
                 />
 
@@ -78,16 +84,19 @@ function SignUpPage() {
                     fullWidth
                     variant="contained"
                     disableElevation
+                    disabled={loading}
                     sx={{
                         mt: 3,
                         mb: 2,
                         py: 1.5,
                         backgroundColor: themeColor,
                         borderRadius: '12px',
-                        '&:hover': { backgroundColor: '#e55a44' }
+                        '&:hover': { backgroundColor: '#e55a44' },
                     }}
                 >
-                    <Typography sx={{ fontWeight: 'bold' }}>Sign up</Typography>
+                    <Typography sx={{ fontWeight: 'bold' }}>
+                        {loading ? 'Signing up...' : 'Sign up'}
+                    </Typography>
                 </Button>
 
                 <Box sx={{ textAlign: 'center' }}>
@@ -109,5 +118,3 @@ function SignUpPage() {
 }
 
 export default SignUpPage;
-
-

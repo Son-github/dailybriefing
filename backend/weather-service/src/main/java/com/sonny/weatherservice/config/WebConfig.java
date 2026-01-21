@@ -14,8 +14,13 @@ public class WebConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
-                        .allowedOrigins("http://localhost:3000")
-                        .allowedMethods("GET", "POST", "PUT", "DELETE");
+                        .allowedOrigins(
+                                "http://localhost:3000",
+                                "https://your-cloudfront-domain.cloudfront.net"
+                        )
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                        .allowedHeaders("*")
+                        .allowCredentials(true);
             }
         };
     }

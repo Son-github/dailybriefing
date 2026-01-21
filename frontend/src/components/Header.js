@@ -1,37 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Button } from '@mui/material';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Logo from '../assets/Logo.png';
-import { Link, useNavigate } from 'react-router-dom';
-import { jwtDecode } from 'jwt-decode';
+import { logout } from '../api/auth';
 
 function Header() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
 
+    // ✅ 토큰 존재 여부만으로 로그인 상태 판단
     useEffect(() => {
         const token = localStorage.getItem('token');
-        if (token) {
-            try {
-                const decoded = jwtDecode(token);
-                const now = Date.now() / 1000;
-                if (decoded.exp > now) {
-                    setIsLoggedIn(true);
-                } else {
-                    setIsLoggedIn(false);
-                }
-            } catch (err) {
-                setIsLoggedIn(false);
-            }
-        } else {
-            setIsLoggedIn(false);
-        }
-    }, []);
+        setIsLoggedIn(!!token);
+    }, [location.pathname]);
+    // 페이지 이동 시마다 상태 갱신 (가장 단순 + 안정적)
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        setIsLoggedIn(false);
-        alert('로그아웃 되었습니다.');
-        navigate('/login');
+    const handleLogout = async () => {
+        try {
+            await logout(); // auth.js에서 localStorage 제거
+        } finally {
+            setIsLoggedIn(false);
+            alert('로그아웃 되었습니다.');
+            navigate('/login');
+        }
     };
 
     return (
@@ -42,7 +34,7 @@ function Header() {
                 alignItems: 'center',
                 p: 2,
                 maxWidth: '600px',
-                mx: 'auto'
+                mx: 'auto',
             }}
         >
             <Link
@@ -67,6 +59,7 @@ function Header() {
                     }}
                 />
             </Link>
+
             <Box>
                 {!isLoggedIn ? (
                     <>
@@ -87,7 +80,7 @@ function Header() {
                                 borderRadius: '20px',
                                 borderColor: 'lightgrey',
                                 color: 'grey',
-                                fontWeight: 'bold'
+                                fontWeight: 'bold',
                             }}
                         >
                             Log in
@@ -105,7 +98,7 @@ function Header() {
                             '&:hover': {
                                 backgroundColor: '#f76d57',
                                 color: '#fff',
-                            }
+                            },
                         }}
                     >
                         로그아웃

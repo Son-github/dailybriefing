@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/exchange")
+@RequestMapping("/exchange")
 @RequiredArgsConstructor
 @Tag(name = "환율 API", description = "한국과 미국 간의 고정 환율 정보 조회")
 public class ExchangeRateController {
@@ -34,6 +34,7 @@ public class ExchangeRateController {
     @GetMapping
     public ResponseEntity<ExchangeRateDto> getUsdRate() {
         try {
+            log.info("호출성공");
             ExchangeRateDto dto = exchangeRateService.getLatestRate();
             return ResponseEntity.ok(dto);
         } catch (RuntimeException e) {
