@@ -109,17 +109,17 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
 
   # ✅ news-nlp-service: 다른 서비스들과 동일하게 "container_name + networks + ports + (선택)depends_on" 적용
-  news-nlp-service:
-    build:
-      context: ./news-nlp-service
-    container_name: news-nlp-service
-    ports:
-      - "8090:8090"
-    networks:
-      - backend-net
-    environment:
-      - MODEL_LOCAL_DIR=/models/sentiment
-      # - MODEL_S3_URI=s3://your-bucket/your-prefix
+#  news-nlp-service:
+#    build:
+#      context: ml-infer
+#    container_name: news-nlp-service
+#    ports:
+#      - "8090:8090"
+#    networks:
+#      - backend-net
+#    environment:
+#      - MODEL_LOCAL_DIR=/models/sentiment
+#      # - MODEL_S3_URI=s3://your-bucket/your-prefix
 
   news-service:
     build:
@@ -131,7 +131,7 @@ services:
       - backend-net
     depends_on:
       - postgres
-      - news-nlp-service
+#      - news-nlp-service
     environment:
       - SERVER_PORT=8084
       - SPRING_PROFILES_ACTIVE=dev

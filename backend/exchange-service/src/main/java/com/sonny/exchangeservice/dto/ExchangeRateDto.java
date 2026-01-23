@@ -1,18 +1,17 @@
 package com.sonny.exchangeservice.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.util.Map;
+import java.time.LocalDateTime;
 
 public record ExchangeRateDto(
         String baseCurrency,
         String targetCurrency,
         Double rate,
-        String fetchedDate
-) {}
+        String fetchedDate,
 
+        // ✅ 추가
+        Double deltaFromLastSeen,     // 현재 - 마지막으로 본 환율
+        LocalDateTime lastSeenAt      // 마지막으로 봤던 시각
+) {}
 
 /* class 대신 record를 쓰는 이유는 단순히 값만 전달하는 단순 응답 DTO이기 때문에
 *  equals, hashCode, toString 자동 생성
