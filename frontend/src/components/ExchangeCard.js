@@ -1,11 +1,39 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, Typography, Box, CircularProgress, Skeleton } from '@mui/material';
+import { Card, CardContent, Typography, Box, Skeleton } from '@mui/material';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import RemoveIcon from '@mui/icons-material/Remove';
 import { motion } from 'framer-motion';
 import api from '../api/api';
 
 const MotionCard = motion(Card);
 const MotionBox = motion(Box);
+
+function formatRelativeTimeKorean(isoOrDateTimeString) {
+    if (!isoOrDateTimeString) return null;
+
+    // 백엔드가 LocalDateTime을 내려주면 보통 "2026-01-22T09:40:10" 형태
+    // 또는 "2026-01-22T09:40:10.123" 등일 수 있어서 Date로 파싱
+    const t = new Date(isoOrDateTimeString);
+    if (Number.isNaN(t.getTime())) return null;
+
+    const now = new Date();
+    const diffMs = now.getTime() - t.getTime();
+
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 10) return '방금 전';
+    if (diffSec < 60) return `${diffSec}초 전`;
+
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}분 전`;
+
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `${diffHour}시간 전`;
+
+    const diffDay = Math.floor(diffHour / 24);
+    return `${diffDay}일 전`;
+}
 
 function ExchangeCard() {
     const [data, setData] = useState(null);
@@ -34,17 +62,16 @@ function ExchangeCard() {
         };
     }, []);
 
-    // ✅ 카운트업 애니메이션 (부드럽게 + 마지막에 정확히 end로 스냅)
+    // ✅ 숫자 카운트업: rate가 바뀔 때만
     useEffect(() => {
-        if (!data?.rate) return;
+        if (!data?.rate || typeof data.rate !== 'number') return;
 
         const end = Number(data.rate);
         if (!Number.isFinite(end)) return;
 
-        const duration = 900; // ms
+        const duration = 900;
         const startTime = performance.now();
         const startValue = 0;
-
         let rafId = 0;
 
         const animate = (now) => {
@@ -53,24 +80,63 @@ function ExchangeCard() {
 
             // easeOutCubic
             const eased = 1 - Math.pow(1 - t, 3);
-            const next = Math.round(startValue + (end - startValue) * eased);
+            const next = startValue + (end - startValue) * eased;
 
-            setAnimatedRate(next);
+            // 환율은 소수점 1~2자리까지도 자연스러움(원하면 0자리로 바꿔도 됨)
+            setAnimatedRate(Number(next.toFixed(1)));
 
             if (t < 1) rafId = requestAnimationFrame(animate);
-            else setAnimatedRate(end); // 마지막 값 보정
+            else setAnimatedRate(Number(end.toFixed(1)));
         };
 
         rafId = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(rafId);
+    }, [data?.rate]);
+
+    // 🎨 카드 톤 (그린 계열)
+    const accent = '#22c55e';
+
+    const delta = useMemo(() => {
+        const v = data?.deltaFromLastSeen;
+        if (v === null || v === undefined) return null;
+        const num = Number(v);
+        return Number.isFinite(num) ? num : null;
     }, [data]);
 
-    const accent = '#22c55e'; // 최신 UI에서 많이 쓰는 깔끔한 그린 톤(너 카드 톤과도 잘 맞음)
+    const trend = useMemo(() => {
+        if (delta === null) return 'none';
+        if (delta > 0) return 'up';
+        if (delta < 0) return 'down';
+        return 'flat';
+    }, [delta]);
 
-    const rateText = useMemo(() => {
-        if (!data?.rate) return '-';
-        return animatedRate.toLocaleString();
-    }, [animatedRate, data]);
+    const deltaLabel = useMemo(() => {
+        if (delta === null) return '첫 확인';
+        const abs = Math.abs(delta);
+        const sign = delta > 0 ? '+' : delta < 0 ? '-' : '';
+        // 보기 좋게 1자리 고정
+        return `${sign}${abs.toFixed(1)}원`;
+    }, [delta]);
+
+    const deltaColor = useMemo(() => {
+        if (delta === null) return 'rgba(17, 24, 39, 0.75)';
+        if (delta > 0) return '#ef4444'; // 상승: 빨강
+        if (delta < 0) return '#3b82f6'; // 하락: 파랑
+        return 'rgba(17, 24, 39, 0.75)';
+    }, [delta]);
+
+    const deltaIcon = useMemo(() => {
+        if (delta === null) return <RemoveIcon sx={{ fontSize: 18 }} />;
+        if (delta > 0) return <ArrowDropUpIcon sx={{ fontSize: 22 }} />;
+        if (delta < 0) return <ArrowDropDownIcon sx={{ fontSize: 22 }} />;
+        return <RemoveIcon sx={{ fontSize: 18 }} />;
+    }, [delta]);
+
+    const lastSeenText = useMemo(() => {
+        const raw = data?.lastSeenAt;
+        const rel = formatRelativeTimeKorean(raw);
+        return rel;
+    }, [data?.lastSeenAt]);
 
     return (
         <MotionCard
@@ -122,16 +188,9 @@ function ExchangeCard() {
                         border: '1px solid rgba(255,255,255,0.6)',
                         boxShadow: '0 10px 24px rgba(0,0,0,0.06)',
                     }}
-                    animate={loading ? { opacity: 0.9 } : { opacity: 1 }}
-                    transition={{ duration: 0.2 }}
                 >
                     {loading ? (
-                        <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
-                        >
-                            <CircularProgress size={26} />
-                        </motion.div>
+                        <Skeleton variant="circular" width={40} height={40} />
                     ) : (
                         <motion.div
                             initial={{ opacity: 0, y: 6, scale: 0.96 }}
@@ -154,19 +213,20 @@ function ExchangeCard() {
                     fontWeight="800"
                     sx={{ mb: 1, color: '#111827', letterSpacing: '-0.01em' }}
                 >
-                    오늘의 환율
+                    오늘의 환율 (USD/KRW)
                 </Typography>
 
                 {loading ? (
                     <>
-                        <Skeleton variant="text" width={160} height={54} sx={{ borderRadius: 2 }} />
-                        <Skeleton variant="text" width={120} height={24} sx={{ borderRadius: 2 }} />
+                        <Skeleton variant="text" width={180} height={54} sx={{ borderRadius: 2 }} />
+                        <Skeleton variant="text" width={140} height={22} sx={{ borderRadius: 2 }} />
+                        <Skeleton variant="rounded" width={120} height={28} sx={{ mt: 2, borderRadius: 999 }} />
                     </>
                 ) : data ? (
                     <>
-                        {/* 숫자 영역: 변경될 때 살짝 팝 */}
+                        {/* 숫자: 변경될 때 살짝 팝 */}
                         <motion.div
-                            key={rateText}
+                            key={String(data?.rate)}
                             initial={{ opacity: 0, y: 6, scale: 0.98 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             transition={{ type: 'spring', stiffness: 280, damping: 20 }}
@@ -181,15 +241,56 @@ function ExchangeCard() {
                                     letterSpacing: '-0.02em',
                                 }}
                             >
-                                {rateText}{' '}
+                                {animatedRate.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}{' '}
                                 <Typography component="span" variant="h5" sx={{ fontWeight: 800 }}>
                                     원
                                 </Typography>
                             </Typography>
                         </motion.div>
 
+                        {/* 기준일 */}
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                             기준일: {data.fetchedDate}
+                        </Typography>
+
+                        {/* last seen 대비 배지 */}
+                        <Box
+                            sx={{
+                                mt: 2,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 0.6,
+                                px: 1.2,
+                                py: 0.6,
+                                borderRadius: 999,
+                                border: '1px solid rgba(255,255,255,0.7)',
+                                background: 'rgba(255,255,255,0.65)',
+                                boxShadow: '0 8px 18px rgba(0,0,0,0.06)',
+                            }}
+                        >
+                            <Box sx={{ display: 'flex', alignItems: 'center', color: deltaColor }}>
+                                {deltaIcon}
+                            </Box>
+
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    fontWeight: 800,
+                                    color: deltaColor,
+                                    letterSpacing: '-0.01em',
+                                }}
+                            >
+                                {deltaLabel}
+                            </Typography>
+
+                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                {delta === null ? ' (마지막 확인 기준 생성)' : ' (마지막 확인 대비)'}
+                            </Typography>
+                        </Box>
+
+                        {/* 마지막 확인 시각 */}
+                        <Typography variant="caption" sx={{ mt: 1, color: 'text.secondary' }}>
+                            {lastSeenText ? `마지막 확인: ${lastSeenText}` : '마지막 확인: -'}
                         </Typography>
 
                         {/* micro badge */}
@@ -206,7 +307,7 @@ function ExchangeCard() {
                                 boxShadow: '0 8px 18px rgba(0,0,0,0.06)',
                             }}
                         >
-                            USD/KRW 기준
+                            {trend === 'up' ? '상승 흐름' : trend === 'down' ? '하락 흐름' : trend === 'flat' ? '변동 없음' : '개인화 기준 생성'}
                         </Box>
                     </>
                 ) : (

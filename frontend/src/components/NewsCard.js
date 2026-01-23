@@ -1,384 +1,252 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, Typography, Box, CircularProgress, Chip, Divider } from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import {
+    Card,
+    CardContent,
+    Typography,
+    Box,
+    CircularProgress,
+    Chip,
+    Skeleton,
+    IconButton,
+    Tooltip,
+} from '@mui/material';
+import LaunchIcon from '@mui/icons-material/Launch';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import { motion } from 'framer-motion';
 import api from '../api/api';
+
+const MotionCard = motion(Card);
+const MotionBox = motion(Box);
+
+function rankGradient(rank) {
+    if (rank === 1) return 'linear-gradient(135deg, #ffb300, #ff6f00)';
+    if (rank === 2) return 'linear-gradient(135deg, #90a4ae, #546e7a)';
+    if (rank === 3) return 'linear-gradient(135deg, #b26a00, #6d4c41)';
+    return 'linear-gradient(135deg, #1976d2, #42a5f5)';
+}
 
 function NewsCard() {
     const [newsTop10, setNewsTop10] = useState([]);
-    const [trendTop5, setTrendTop5] = useState([]);
-    const [sentimentSummary, setSentimentSummary] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [reloadTick, setReloadTick] = useState(0);
 
     useEffect(() => {
         let mounted = true;
 
-        const fetchNewsBrief = async () => {
+        const fetchTop10 = async () => {
             try {
+                setLoading(true);
                 const res = await api.get('/news/brief');
                 if (!mounted) return;
 
                 const data = res.data || {};
                 setNewsTop10(data.newsTop10 || []);
-                setTrendTop5(data.trendTop5 || []);
-                setSentimentSummary(data.sentimentSummary || null);
             } catch (err) {
                 console.error('뉴스를 불러오지 못했습니다:', err);
-                if (mounted) {
-                    setNewsTop10([]);
-                    setTrendTop5([]);
-                    setSentimentSummary(null);
-                }
+                if (mounted) setNewsTop10([]);
             } finally {
                 if (mounted) setLoading(false);
             }
         };
 
-        fetchNewsBrief();
+        fetchTop10();
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [reloadTick]);
 
-    // backend label: POSITIVE/NEGATIVE/NEUTRAL
-    const getSentimentColor = (label) => {
-        if (label === 'POSITIVE') return 'success';
-        if (label === 'NEGATIVE') return 'error';
-        return 'default';
-    };
-
-    const sentimentLabelToKorean = (label) => {
-        if (label === 'POSITIVE') return '긍정';
-        if (label === 'NEGATIVE') return '부정';
-        return '중립';
-    };
-
-    // sizeLevel 1~5 → 배지 크기
-    const trendSizeStyle = (sizeLevel) => {
-        switch (sizeLevel) {
-            case 5:
-                return { fontSize: 16, fontWeight: 900, px: 1.8, py: 0.9 };
-            case 4:
-                return { fontSize: 14, fontWeight: 850, px: 1.6, py: 0.8 };
-            case 3:
-                return { fontSize: 13, fontWeight: 800, px: 1.4, py: 0.7 };
-            case 2:
-                return { fontSize: 12, fontWeight: 750, px: 1.25, py: 0.62 };
-            default:
-                return { fontSize: 11, fontWeight: 700, px: 1.1, py: 0.55 };
-        }
-    };
-
-    const sentimentBar = useMemo(() => {
-        if (!sentimentSummary || !sentimentSummary.total) return null;
-        const total = sentimentSummary.total || 1;
-
-        const posPct = Math.round((sentimentSummary.positiveCount / total) * 100);
-        const negPct = Math.round((sentimentSummary.negativeCount / total) * 100);
-        const neuPct = Math.max(0, 100 - posPct - negPct);
-
-        return { posPct, negPct, neuPct };
-    }, [sentimentSummary]);
+    const onReload = () => setReloadTick((t) => t + 1);
 
     return (
-        <Card
+        <MotionCard
+            initial={{ opacity: 0, y: 14, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+            whileHover={{ y: -3, scale: 1.01 }}
             sx={{
                 borderRadius: 6,
-                boxShadow: '0 10px 28px rgba(0,0,0,0.08)',
-                bgcolor: '#ffffff',
-                transition: 'transform 0.2s ease-in-out',
-                '&:hover': { transform: 'scale(1.01)' },
-                minHeight: 460,
+                overflow: 'hidden',
+                position: 'relative',
+                bgcolor: 'rgba(255,255,255,0.78)',
+                border: '1px solid rgba(255,255,255,0.6)',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+                minHeight: 420,
             }}
         >
-            <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* subtle gradient glow */}
+            <Box
+                sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    background:
+                        'radial-gradient(700px 220px at 20% 0%, rgba(59,130,246,0.18), transparent 60%), radial-gradient(650px 220px at 95% 20%, rgba(34,197,94,0.12), transparent 58%)',
+                    pointerEvents: 'none',
+                }}
+            />
+
+            <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 2.2, position: 'relative' }}>
                 {/* Header */}
-                <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900 }}>
-                        오늘의 주요 뉴스
-                    </Typography>
-
-                    <Chip
-                        label="LIVE TREND"
-                        size="small"
-                        sx={{
-                            bgcolor: 'rgba(25,118,210,0.10)',
-                            color: '#1976d2',
-                            fontWeight: 900,
-                            letterSpacing: 0.6,
-                        }}
-                    />
-                </Box>
-
-                {loading ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 6 }}>
-                        <CircularProgress size={42} sx={{ mb: 2 }} />
-                        <Typography variant="body1" sx={{ color: '#666' }}>
-                            뉴스를 불러오는 중입니다...
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 900, color: '#111827', letterSpacing: '-0.01em' }}>
+                            오늘의 주요 뉴스
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'rgba(17,24,39,0.65)' }}>
+                            Top 10 headlines
                         </Typography>
                     </Box>
-                ) : (
-                    <>
-                        {/* ✅ Trend Top 5 (Top50 제목 기반) — 트렌디 UI (점수 제거, 순위만) */}
-                        <Box
+
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip
+                            label="TOP 10"
+                            size="small"
                             sx={{
-                                borderRadius: 5,
-                                p: 2.2,
-                                bgcolor: 'rgba(0,0,0,0.02)',
-                                border: '1px solid rgba(0,0,0,0.06)',
-                                position: 'relative',
-                                overflow: 'hidden',
+                                bgcolor: 'rgba(59,130,246,0.10)',
+                                color: '#2563eb',
+                                fontWeight: 900,
+                                letterSpacing: 0.6,
+                                borderRadius: 999,
                             }}
-                        >
-                            {/* 은은한 배경 그라데이션 */}
-                            <Box
+                        />
+
+                        <Tooltip title="새로고침">
+                            <IconButton
+                                onClick={onReload}
                                 sx={{
-                                    position: 'absolute',
-                                    inset: 0,
-                                    background:
-                                        'radial-gradient(600px 180px at 20% 0%, rgba(25,118,210,0.18), transparent 60%), radial-gradient(500px 160px at 90% 20%, rgba(76,175,80,0.14), transparent 55%)',
-                                    pointerEvents: 'none',
+                                    width: 36,
+                                    height: 36,
+                                    bgcolor: 'rgba(0,0,0,0.04)',
+                                    border: '1px solid rgba(0,0,0,0.06)',
+                                    '&:hover': { bgcolor: 'rgba(0,0,0,0.06)' },
                                 }}
-                            />
+                            >
+                                <motion.div
+                                    animate={loading ? { rotate: 360 } : { rotate: 0 }}
+                                    transition={loading ? { repeat: Infinity, duration: 0.9, ease: 'linear' } : { duration: 0.2 }}
+                                >
+                                    <RefreshIcon fontSize="small" />
+                                </motion.div>
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
+                </Box>
 
-                            <Box sx={{ position: 'relative' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.2 }}>
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 900, color: '#222' }}>
-                                        지금 뜨는 키워드
-                                    </Typography>
-
-                                    <Chip
-                                        label="TOP 5"
-                                        size="small"
-                                        sx={{
-                                            bgcolor: 'rgba(0,0,0,0.06)',
-                                            fontWeight: 900,
-                                            letterSpacing: 0.6,
-                                        }}
-                                    />
-                                </Box>
-
-                                <Typography variant="caption" sx={{ color: '#666', display: 'block', mb: 1.4 }}>
-                                    트렌드 기준: 상위 50개 뉴스 제목
-                                </Typography>
-
-                                {/* 트렌드 배지 */}
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.1 }}>
-                                    {trendTop5.length > 0 ? (
-                                        trendTop5.map((t) => {
-                                            const size = trendSizeStyle(t.sizeLevel);
-
-                                            return (
-                                                <Box
-                                                    key={`${t.rank}-${t.keyword}`}
-                                                    sx={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: 1,
-                                                        borderRadius: 999,
-                                                        bgcolor: 'rgba(255,255,255,0.75)',
-                                                        border: '1px solid rgba(0,0,0,0.08)',
-                                                        boxShadow: '0 10px 24px rgba(0,0,0,0.06)',
-                                                        backdropFilter: 'blur(6px)',
-                                                        transition: 'transform 160ms ease, box-shadow 160ms ease',
-                                                        '&:hover': {
-                                                            transform: 'translateY(-2px)',
-                                                            boxShadow: '0 14px 30px rgba(0,0,0,0.10)',
-                                                        },
-                                                        ...size,
-                                                    }}
-                                                    title={`rank=${t.rank} (delta=${t.delta}, prev=${t.previousCount} → now=${t.currentCount})`}
-                                                >
-                                                    {/* 랭크 배지 */}
-                                                    <Box
-                                                        sx={{
-                                                            width: 26,
-                                                            height: 26,
-                                                            borderRadius: 999,
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            fontSize: 12,
-                                                            fontWeight: 900,
-                                                            color: '#fff',
-                                                            background:
-                                                                t.rank === 1
-                                                                    ? 'linear-gradient(135deg, #ffb300, #ff6f00)'
-                                                                    : t.rank === 2
-                                                                        ? 'linear-gradient(135deg, #90a4ae, #546e7a)'
-                                                                        : t.rank === 3
-                                                                            ? 'linear-gradient(135deg, #b26a00, #6d4c41)'
-                                                                            : 'linear-gradient(135deg, #1976d2, #42a5f5)',
-                                                            boxShadow: '0 10px 18px rgba(0,0,0,0.12)',
-                                                            flex: '0 0 auto',
-                                                        }}
-                                                    >
-                                                        {t.rank}
-                                                    </Box>
-
-                                                    {/* 키워드 */}
-                                                    <Box
-                                                        sx={{
-                                                            color: '#1f2a37',
-                                                            fontWeight: size.fontWeight,
-                                                            fontSize: size.fontSize,
-                                                            lineHeight: 1,
-                                                            letterSpacing: '-0.2px',
-                                                        }}
-                                                    >
-                                                        {t.keyword}
-                                                    </Box>
-
-                                                    {/* 방향 표시(점수 X, 랭크만 + 상승감) */}
-                                                    <Box
-                                                        sx={{
-                                                            ml: 0.2,
-                                                            fontSize: 12,
-                                                            fontWeight: 900,
-                                                            color: t.direction === 'UP' ? '#2e7d32' : t.direction === 'DOWN' ? '#d32f2f' : '#666',
-                                                            opacity: 0.9,
-                                                        }}
-                                                    >
-                                                        {t.direction === 'UP' ? '▲' : t.direction === 'DOWN' ? '▼' : '•'}
-                                                    </Box>
-                                                </Box>
-                                            );
-                                        })
-                                    ) : (
-                                        <Typography variant="body2" color="text.secondary">
-                                            트렌드 데이터가 없습니다.
-                                        </Typography>
-                                    )}
-                                </Box>
-
-                                {/* 감성 요약(Top10 기준) */}
-                                {sentimentSummary && sentimentBar && (
-                                    <Box sx={{ mt: 1.8 }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.8 }}>
-                                            <Typography variant="caption" sx={{ color: '#777', fontWeight: 800 }}>
-                                                뉴스 분위기(Top10)
-                                            </Typography>
-
-                                            <Box sx={{ display: 'flex', gap: 0.8 }}>
-                                                <Chip
-                                                    size="small"
-                                                    label={`긍정 ${sentimentSummary.positiveCount}`}
-                                                    color="success"
-                                                    sx={{ fontWeight: 900 }}
-                                                />
-                                                <Chip
-                                                    size="small"
-                                                    label={`부정 ${sentimentSummary.negativeCount}`}
-                                                    color="error"
-                                                    sx={{ fontWeight: 900 }}
-                                                />
-                                                <Chip
-                                                    size="small"
-                                                    label={`중립 ${sentimentSummary.neutralCount}`}
-                                                    sx={{ fontWeight: 900 }}
-                                                />
-                                            </Box>
-                                        </Box>
-
-                                        <Box
-                                            sx={{
-                                                display: 'flex',
-                                                width: '100%',
-                                                height: 10,
-                                                borderRadius: 999,
-                                                overflow: 'hidden',
-                                                bgcolor: 'rgba(0,0,0,0.06)',
-                                            }}
-                                        >
-                                            <Box sx={{ width: `${sentimentBar.posPct}%`, bgcolor: '#2e7d32' }} />
-                                            <Box sx={{ width: `${sentimentBar.neuPct}%`, bgcolor: '#9e9e9e' }} />
-                                            <Box sx={{ width: `${sentimentBar.negPct}%`, bgcolor: '#d32f2f' }} />
-                                        </Box>
-
-                                        <Typography variant="caption" sx={{ color: '#777', display: 'block', mt: 0.8 }}>
-                                            평균 점수: {Math.round((sentimentSummary.averageScore || 0) * 100)} / 100
-                                        </Typography>
-                                    </Box>
-                                )}
-                            </Box>
+                {/* Body */}
+                {loading ? (
+                    <Box sx={{ py: 1 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
+                            {[...Array(7)].map((_, idx) => (
+                                <Skeleton key={idx} variant="rounded" height={46} sx={{ borderRadius: 3 }} />
+                            ))}
                         </Box>
 
-                        <Divider sx={{ my: 0.5 }} />
-
-                        {/* ✅ News Top10 리스트 (표시 + 감성 칩) */}
-                        {newsTop10.length > 0 ? (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
-                                {newsTop10.map((news) => (
-                                    <Box
-                                        key={news.rank}
-                                        sx={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between',
-                                            p: 1.5,
-                                            borderRadius: 3,
-                                            backgroundColor: 'rgba(0,0,0,0.02)',
-                                            '&:hover': { backgroundColor: 'rgba(0,0,0,0.05)' },
-                                            transition: '0.2s',
-                                            gap: 1.5,
-                                        }}
-                                    >
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, flex: 1, minWidth: 0 }}>
-                                            <Box
-                                                sx={{
-                                                    width: 26,
-                                                    height: 26,
-                                                    borderRadius: 999,
-                                                    bgcolor: 'rgba(0,0,0,0.06)',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    fontWeight: 900,
-                                                    color: '#333',
-                                                    flex: '0 0 auto',
-                                                }}
-                                            >
-                                                {news.rank}
-                                            </Box>
-
-                                            <Typography
-                                                variant="body1"
-                                                component="a"
-                                                href={news.link}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                sx={{
-                                                    textDecoration: 'none',
-                                                    color: '#333',
-                                                    fontWeight: 700,
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap',
-                                                    flex: 1,
-                                                    '&:hover': { color: '#1976d2' },
-                                                }}
-                                            >
-                                                {news.title}
-                                            </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'center', pt: 2 }}>
+                            <CircularProgress size={26} />
+                        </Box>
+                    </Box>
+                ) : newsTop10.length > 0 ? (
+                    <motion.div
+                        key={reloadTick}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.25 }}
+                    >
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.1 }}>
+                            {newsTop10.map((news, idx) => (
+                                <MotionBox
+                                    key={news.rank ?? idx}
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ type: 'spring', stiffness: 280, damping: 22, delay: idx * 0.03 }}
+                                    whileHover={{ y: -2 }}
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 1.2,
+                                        p: 1.4,
+                                        borderRadius: 3,
+                                        bgcolor: 'rgba(255,255,255,0.72)',
+                                        border: '1px solid rgba(0,0,0,0.06)',
+                                        boxShadow: '0 10px 22px rgba(0,0,0,0.06)',
+                                        transition: 'box-shadow 160ms ease, transform 160ms ease',
+                                        '&:hover': { boxShadow: '0 14px 28px rgba(0,0,0,0.10)' },
+                                    }}
+                                >
+                                    {/* Left: rank + title */}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, flex: 1, minWidth: 0 }}>
+                                        <Box
+                                            sx={{
+                                                width: 32,
+                                                height: 32,
+                                                borderRadius: 999,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontWeight: 900,
+                                                color: '#fff',
+                                                background: rankGradient(news.rank ?? idx + 1),
+                                                boxShadow: '0 10px 18px rgba(0,0,0,0.14)',
+                                                flex: '0 0 auto',
+                                            }}
+                                        >
+                                            {news.rank ?? idx + 1}
                                         </Box>
 
-                                        <Chip
-                                            label={sentimentLabelToKorean(news.sentimentLabel)}
-                                            color={getSentimentColor(news.sentimentLabel)}
-                                            size="small"
-                                            sx={{ fontWeight: 900 }}
-                                            title={`score=${Math.round((news.sentimentScore || 0) * 100)} / 100`}
-                                        />
+                                        <Typography
+                                            component="a"
+                                            href={news.link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            sx={{
+                                                textDecoration: 'none',
+                                                color: '#111827',
+                                                fontWeight: 800,
+                                                letterSpacing: '-0.01em',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                                flex: 1,
+                                                '&:hover': { color: '#2563eb' },
+                                            }}
+                                            title={news.title}
+                                        >
+                                            {news.title}
+                                        </Typography>
                                     </Box>
-                                ))}
-                            </Box>
-                        ) : (
-                            <Typography textAlign="center" color="text.secondary" sx={{ py: 4 }}>
-                                현재 표시할 뉴스가 없습니다.
-                            </Typography>
-                        )}
-                    </>
+
+                                    {/* Right: open icon */}
+                                    <Tooltip title="원문 보기">
+                                        <IconButton
+                                            component="a"
+                                            href={news.link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            sx={{
+                                                width: 36,
+                                                height: 36,
+                                                bgcolor: 'rgba(59,130,246,0.10)',
+                                                border: '1px solid rgba(59,130,246,0.18)',
+                                                color: '#2563eb',
+                                                '&:hover': { bgcolor: 'rgba(59,130,246,0.14)' },
+                                                flex: '0 0 auto',
+                                            }}
+                                        >
+                                            <LaunchIcon fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                </MotionBox>
+                            ))}
+                        </Box>
+                    </motion.div>
+                ) : (
+                    <Typography textAlign="center" color="text.secondary" sx={{ py: 6 }}>
+                        현재 표시할 뉴스가 없습니다.
+                    </Typography>
                 )}
             </CardContent>
-        </Card>
+        </MotionCard>
     );
 }
 

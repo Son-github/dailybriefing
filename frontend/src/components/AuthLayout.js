@@ -2,68 +2,113 @@ import React from 'react';
 import Logo from '../assets/Logo.png';
 import { Box, Container, Typography } from '@mui/material';
 
-// 로그인 페이지의 'S' 로고
-const LoginLogo = () => (
-    <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M63.6364 10C51.5152 10 42.4242 19.3182 42.4242 31.8182C42.4242 41.2159 48.4848 49.0455 56.9697 52.125V52.2727C51.5152 54.8295 47.7273 60.6705 47.7273 67.5C47.7273 78.9773 56.9697 88.6364 69.0909 88.6364C81.2121 88.6364 90.303 79.3182 90.303 66.8182C90.303 57.4205 84.2424 49.5909 75.7576 46.5114V46.3636C81.2121 43.8068 85 37.9659 85 31.1364C85 19.6591 76.2121 10 63.6364 10Z" fill="#F96356"/>
-        <path d="M36.3636 90C48.4848 90 57.5758 80.6818 57.5758 68.1818C57.5758 58.7841 51.5152 50.9545 43.0303 47.875V47.7273C48.4848 45.1705 52.2727 39.3295 52.2727 32.5C52.2727 21.0227 43.0303 11.3636 30.9091 11.3636C18.7879 11.3636 9.69697 20.6818 9.69697 33.1818C9.69697 42.5795 15.7576 50.4091 24.2424 53.4886V53.6364C18.7879 56.1932 15 62.0341 15 68.8636C15 80.3409 23.7879 90 36.3636 90Z" fill="#F96356"/>
-    </svg>
-);
-
-// 회원가입 페이지의 'SMART INFO HUB' 로고
-const SignUpLogo = () => (
-    <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="10" y="10" width="80" height="60" rx="15" stroke="#f76d57" strokeWidth="4"/>
-        <circle cx="50" cy="35" r="10" stroke="#f76d57" strokeWidth="4"/>
-        <path d="M40 25L35 20M60 25L65 20M50 15V10M50 55V60M30 40L25 40M70 40L75 40M38 52C40.6667 56.6667 59.3333 56.6667 62 52" stroke="#f76d57" strokeWidth="4" strokeLinecap="round"/>
-        <path d="M25 60C30 75, 70 75, 75 60" stroke="#f76d57" strokeWidth="4" strokeLinecap="round" />
-    </svg>
-);
-
 // props로 logoType, title, children을 받습니다.
-function AuthLayout({ logoType, title, children }) {
+function AuthLayout({ logoType = 'login', title, children }) {
     return (
-        <Container component="main" maxWidth="xs" sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '100vh'
-        }}>
+        <Box
+            sx={{
+                minHeight: '100vh',
+                position: 'relative',
+                overflow: 'hidden',
+                bgcolor: '#0b1220', // ✅ Dashboard와 통일
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                px: 2,
+            }}
+        >
+            {/* ✅ Dashboard 스타일 그라데이션 블랍 */}
             <Box
                 sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    background:
+                        'radial-gradient(900px circle at 20% 10%, rgba(34,197,94,0.22), transparent 55%), radial-gradient(900px circle at 80% 20%, rgba(59,130,246,0.18), transparent 55%), radial-gradient(900px circle at 50% 90%, rgba(168,85,247,0.16), transparent 55%)',
+                    filter: 'blur(2px)',
                 }}
-            >
-                {/* 3. 기존의 SVG 컴포넌트 대신, Box를 img 태그처럼 사용하여 이미지를 표시합니다. */}
+            />
+
+            {/* ✅ 은은한 노이즈 (고급스러운 질감) */}
+            <Box
+                sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    opacity: 0.06,
+                    backgroundImage:
+                        'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27160%27 height=%27160%27 viewBox=%270 0 160 160%27%3E%3Cfilter id=%27n%27 x=%270%27 y=%270%27%3E%3CfeTurbulence type=%27fractalNoise%27 baseFrequency=%270.8%27 numOctaves=%272%27 stitchTiles=%27stitch%27/%3E%3C/filter%3E%3Crect width=%27160%27 height=%27160%27 filter=%27url(%23n)%27 opacity=%270.35%27/%3E%3C/svg%3E")',
+                    backgroundSize: '160px 160px',
+                }}
+            />
+
+            <Container component="main" maxWidth="xs" sx={{ position: 'relative', zIndex: 1 }}>
+                {/* ✅ 중앙 글래스 카드 */}
                 <Box
-                    component="img"
-                    src={Logo} // src 속성에 import한 이미지 변수를 넣어줍니다.
-                    alt={`${logoType} Logo`} // 이미지가 보이지 않을 때 표시될 대체 텍스트
                     sx={{
-                        width: 280,
-                        height: 280,
-                        mb: title ? 0 : 3 // 타이틀이 없을 경우 로고 아래에 여백을 줍니다.
+                        borderRadius: 6,
+                        p: 3,
+                        bgcolor: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.10)',
+                        backdropFilter: 'blur(12px)',
+                        boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
                     }}
-                />
-
-                {/* title이 있으면 h5 태그로 보여줍니다. */}
-                {title && (
-                    <Typography
-                        variant="h5"
-                        component="h1"
-                        sx={{ fontWeight: 'bold', color: '#f76d57', mt: 1, mb: 3 }}
+                >
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            textAlign: 'center',
+                        }}
                     >
-                        {title}
-                    </Typography>
-                )}
+                        {/* ✅ 로고 */}
+                        <Box
+                            component="img"
+                            src={Logo}
+                            alt={`${logoType} Logo`}
+                            sx={{
+                                width: logoType === 'signup' ? 220 : 240,
+                                height: 'auto',
+                                mb: title ? 1 : 2,
+                                filter: 'drop-shadow(0 12px 26px rgba(0,0,0,0.35))',
+                                userSelect: 'none',
+                            }}
+                        />
 
-                {/* children은 이 레이아웃을 사용하는 컴포넌트의 실제 내용(폼 등)이 됩니다. */}
-                {children}
-            </Box>
-        </Container>
+                        {/* ✅ 타이틀(옵션) */}
+                        {title && (
+                            <Typography
+                                variant="h6"
+                                component="h1"
+                                sx={{
+                                    fontWeight: 900,
+                                    letterSpacing: '-0.02em',
+                                    color: 'rgba(255,255,255,0.92)',
+                                    mb: 2,
+                                }}
+                            >
+                                {title}
+                            </Typography>
+                        )}
+
+                        {/* ✅ 폼(children) */}
+                        <Box sx={{ width: '100%' }}>{children}</Box>
+
+                        {/* ✅ 하단 micro-copy (원하면 삭제 가능) */}
+                        <Typography
+                            variant="caption"
+                            sx={{
+                                mt: 2,
+                                color: 'rgba(255,255,255,0.45)',
+                            }}
+                        >
+                            Secure session · Refresh cookies enabled
+                        </Typography>
+                    </Box>
+                </Box>
+            </Container>
+        </Box>
     );
 }
 
