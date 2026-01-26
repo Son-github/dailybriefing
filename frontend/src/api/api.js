@@ -12,18 +12,18 @@ const api = axios.create({
     },
 });
 
-// ====== Request Interceptor: 토큰 자동 부착 + (임시) X-USER-ID 부착 ======
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
-        if (token) config.headers.Authorization = `Bearer ${token}`;
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
 
-        // ✅ "마지막으로 본 환율(last seen)" 저장용 유저 식별자
-        // - 지금은 임시로 localStorage userId 사용
-        // - 없으면 anonymous (로컬/테스트)
-        // - 원하면 exchange 요청에만 붙이도록 조건을 걸어도 됨
-        const userId = localStorage.getItem('userId') || 'anonymous';
-        config.headers['X-USER-ID'] = userId;
+        // ✅ auth 계열은 X-USER-ID 안 붙임
+        if (!config.url?.startsWith('/auth')) {
+            const userId = localStorage.getItem('userId') || 'anonymous';
+            config.headers['X-USER-ID'] = userId;
+        }
 
         return config;
     },

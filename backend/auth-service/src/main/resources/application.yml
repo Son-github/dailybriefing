@@ -1,6 +1,5 @@
 server:
   port: ${SERVER_PORT:8081}
-  # ALB/CloudFront 뒤에서 원본 헤더 처리
   forward-headers-strategy: native
 
 spring:
@@ -10,28 +9,27 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      # 초기 연결 실패에도 바로 종료하지 않도록(컨테이너 부팅 안정화)
-      initialization-fail-timeout: ${SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT:0}
+      initialization-fail-timeout: ${SPRING_DATASOURCE_HIKERNATION_FAIL_TIMEOUT:0}
 
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
 
   jackson:
     serialization:
       fail-on-empty-beans: false
 
+# ✅ JWT 키는 "jwt.*"로 통일 (JwtTokenProvider @Value("${jwt.secret}") 와 일치)
+jwt:
+  secret: ${JWT_SECRET}
+  access-validity-ms: ${JWT_ACCESS_VALIDITY_MS:3600000}        # 1h
+  refresh-validity-ms: ${JWT_REFRESH_VALIDITY_MS:604800000}    # 7d
 
-  jwt:
-    secret: ${JWT_SECRET}
-
-
-# 헬스체크(예: /actuator/health) 노출
 management:
   endpoints:
     web:
@@ -42,14 +40,11 @@ management:
     health:
       probes:
         enabled: true
-      show-details: always
+      show-details: never
 
 logging:
   level:
-    org.hibernate.SQL: debug
-    org.hibernate.type.descriptor.sql: off
     org.springframework.security: info
-    org.springframework.boot.actuate: debug
     org.springframework.web: info
 
 springdoc:
@@ -61,4 +56,6 @@ springdoc:
 
 app:
   cors:
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    # ✅ 운영은 반드시 CloudFront 도메인 넣기(ENV로 강제하는 게 안전)
+    # 예: https://dxxxx.cloudfront.net
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}

@@ -2,16 +2,24 @@ import api from './api';
 
 export async function login(email, password) {
     const res = await api.post('/auth/login', { email, password });
-    return res.data; // { accessToken, ... }
+    return res.data; // { accessToken, tokenType, message }
 }
 
-export async function signup(email, password) {
-    const res = await api.post('/auth/signup', { email, password });
+// ✅ weatherRegion 추가 (없으면 SEOUL로 기본)
+export async function signup(email, password, weatherRegion = 'SEOUL') {
+    const res = await api.post('/auth/signup', { email, password, weatherRegion });
     return res.data;
 }
 
+// ✅ 서버 로그아웃 엔드포인트 호출 + 로컬 정리
 export async function logout() {
-    // 서버에 logout 엔드포인트가 있으면 호출 (없으면 생략 가능)
-    // await api.post('/auth/logout', {});
-    localStorage.removeItem('token');
+    try {
+        await api.post('/auth/logout', {});
+    } catch (e) {
+        // accessToken 만료 등으로 실패해도 로컬 로그아웃은 진행
+    } finally {
+        localStorage.removeItem('token');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('weatherRegion');
+    }
 }

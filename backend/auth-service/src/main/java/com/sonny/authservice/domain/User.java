@@ -32,6 +32,10 @@ public class User {
     @Column(length = 512)
     private String refreshToken;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private WeatherRegion weatherRegion = WeatherRegion.SEOUL;
+
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

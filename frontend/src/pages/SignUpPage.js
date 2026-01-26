@@ -17,11 +17,23 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import AuthLayout from '../components/AuthLayout';
 import { signup } from '../api/auth';
 
+const REGIONS = [
+    { value: 'SEOUL', label: '서울' },
+    { value: 'BUSAN', label: '부산' },
+    { value: 'INCHEON', label: '인천' },
+    { value: 'DAEGU', label: '대구' },
+    { value: 'DAEJEON', label: '대전' },
+    { value: 'GWANGJU', label: '광주' },
+    { value: 'JEJU', label: '제주도' },
+];
+
 function SignUpPage() {
-    const [form, setForm] = useState({ email: '', password: '' });
+    const [form, setForm] = useState({ email: '', password: '', weatherRegion: 'SEOUL' });
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState(''); // ✅ 성공 메시지
     const [loading, setLoading] = useState(false);
     const [showPw, setShowPw] = useState(false);
+
     const themeColor = '#f76d57';
     const accent2 = '#ffb199';
     const navigate = useNavigate();
@@ -36,6 +48,7 @@ function SignUpPage() {
             [e.target.name]: e.target.value,
         });
         setError('');
+        setSuccess('');
     };
 
     const handleSubmit = async (e) => {
@@ -44,11 +57,18 @@ function SignUpPage() {
 
         setLoading(true);
         setError('');
+        setSuccess('');
 
         try {
-            await signup(form.email, form.password);
-            alert('회원가입 성공! 로그인 페이지로 이동합니다.');
-            navigate('/login');
+            await signup(form.email, form.password, form.weatherRegion);
+
+            // ✅ alert 대신 페이지 내 성공 메시지 표시
+            setSuccess('회원가입 성공! 잠시 후 로그인 페이지로 이동합니다.');
+
+            // ✅ UX: 잠깐 보여주고 이동
+            setTimeout(() => {
+                navigate('/login');
+            }, 900);
         } catch (err) {
             const msg =
                 err?.response?.data?.message ||
@@ -86,7 +106,6 @@ function SignUpPage() {
                     </Typography>
                 </Box>
 
-                {/* ✅ LoginPage와 동일 톤: 다크 글래스 폼 컨테이너 */}
                 <Box
                     sx={{
                         position: 'relative',
@@ -99,7 +118,6 @@ function SignUpPage() {
                         overflow: 'hidden',
                     }}
                 >
-                    {/* subtle glow */}
                     <Box
                         sx={{
                             position: 'absolute',
@@ -174,6 +192,44 @@ function SignUpPage() {
                                 ),
                             }}
                         />
+
+                        <TextField
+                            margin="normal"
+                            required
+                            fullWidth
+                            label="선호 지역"
+                            name="weatherRegion"
+                            value={form.weatherRegion}
+                            onChange={handleChange}
+                            disabled={loading}
+                            select
+                            SelectProps={{ native: true }}
+                            InputLabelProps={{ style: { color: 'rgba(255,255,255,0.65)' } }}
+                            sx={{
+                                '& .MuiOutlinedInput-root': {
+                                    borderRadius: 3,
+                                    bgcolor: 'rgba(255,255,255,0.06)',
+                                    color: 'rgba(255,255,255,0.88)',
+                                    '& fieldset': { borderColor: 'rgba(255,255,255,0.16)' },
+                                    '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.28)' },
+                                    '&.Mui-focused fieldset': { borderColor: `${themeColor}88` },
+                                },
+                                '& select': { color: 'rgba(255,255,255,0.88)' },
+                            }}
+                        >
+                            {REGIONS.map((r) => (
+                                <option key={r.value} value={r.value}>
+                                    {r.label}
+                                </option>
+                            ))}
+                        </TextField>
+
+                        {/* ✅ 성공/에러 메시지 */}
+                        {success && (
+                            <Alert severity="success" sx={{ mt: 2, borderRadius: 3 }}>
+                                {success}
+                            </Alert>
+                        )}
 
                         {error && (
                             <Alert severity="error" sx={{ mt: 2, borderRadius: 3 }}>

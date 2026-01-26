@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, Typography, Box, Skeleton } from '@mui/material';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
@@ -7,14 +7,14 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import { motion } from 'framer-motion';
 import api from '../api/api';
 
-const MotionCard = motion(Card);
-const MotionBox = motion(Box);
+// ✅ framer-motion 최신 권장 방식(경고 제거)
+const MotionCard = motion.create(Card);
+const MotionBox = motion.create(Box);
 
 function formatRelativeTimeKorean(isoOrDateTimeString) {
     if (!isoOrDateTimeString) return null;
 
-    // 백엔드가 LocalDateTime을 내려주면 보통 "2026-01-22T09:40:10" 형태
-    // 또는 "2026-01-22T09:40:10.123" 등일 수 있어서 Date로 파싱
+    // LocalDateTime("2026-01-22T09:40:10")도 Date로 파싱 가능(브라우저에 따라 약간 다름)
     const t = new Date(isoOrDateTimeString);
     if (Number.isNaN(t.getTime())) return null;
 
@@ -38,13 +38,21 @@ function formatRelativeTimeKorean(isoOrDateTimeString) {
 function ExchangeCard() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    // ✅ 실시간 느낌: 이전 rate에서 새 rate로 카운트업
+    const prevRateRef = useRef(null);
     const [animatedRate, setAnimatedRate] = useState(0);
+
+    // 🎨 카드 톤(그린 계열)
+    const accent = '#22c55e';
 
     useEffect(() => {
         let mounted = true;
 
         const fetchExchangeRate = async () => {
             try {
+                // ✅ 기존 엔드포인트 유지
+                // 백엔드가 userId 필요하면(마지막 조회 대비) 컨트롤러에서 토큰/헤더로 받도록 되어있어야 함
                 const res = await api.get('/exchange');
                 if (mounted) setData(res.data);
             } catch (error) {
@@ -56,50 +64,19 @@ function ExchangeCard() {
         };
 
         fetchExchangeRate();
-
         return () => {
             mounted = false;
         };
     }, []);
 
-    // ✅ 숫자 카운트업: rate가 바뀔 때만
-    useEffect(() => {
-        if (!data?.rate || typeof data.rate !== 'number') return;
-
-        const end = Number(data.rate);
-        if (!Number.isFinite(end)) return;
-
-        const duration = 900;
-        const startTime = performance.now();
-        const startValue = 0;
-        let rafId = 0;
-
-        const animate = (now) => {
-            const elapsed = now - startTime;
-            const t = Math.min(elapsed / duration, 1);
-
-            // easeOutCubic
-            const eased = 1 - Math.pow(1 - t, 3);
-            const next = startValue + (end - startValue) * eased;
-
-            // 환율은 소수점 1~2자리까지도 자연스러움(원하면 0자리로 바꿔도 됨)
-            setAnimatedRate(Number(next.toFixed(1)));
-
-            if (t < 1) rafId = requestAnimationFrame(animate);
-            else setAnimatedRate(Number(end.toFixed(1)));
-        };
-
-        rafId = requestAnimationFrame(animate);
-        return () => cancelAnimationFrame(rafId);
-    }, [data?.rate]);
-
-    // 🎨 카드 톤 (그린 계열)
-    const accent = '#22c55e';
-
+    // ✅ delta 필드명 호환 처리:
+    // - deltaFromLastSeen (예전)
+    // - delta (개선된 DTO)
     const delta = useMemo(() => {
-        const v = data?.deltaFromLastSeen;
-        if (v === null || v === undefined) return null;
-        const num = Number(v);
+        if (!data) return null;
+        const raw = data.deltaFromLastSeen ?? data.delta ?? null;
+        if (raw === null || raw === undefined) return null;
+        const num = Number(raw);
         return Number.isFinite(num) ? num : null;
     }, [data]);
 
@@ -114,7 +91,6 @@ function ExchangeCard() {
         if (delta === null) return '첫 확인';
         const abs = Math.abs(delta);
         const sign = delta > 0 ? '+' : delta < 0 ? '-' : '';
-        // 보기 좋게 1자리 고정
         return `${sign}${abs.toFixed(1)}원`;
     }, [delta]);
 
@@ -133,10 +109,45 @@ function ExchangeCard() {
     }, [delta]);
 
     const lastSeenText = useMemo(() => {
-        const raw = data?.lastSeenAt;
-        const rel = formatRelativeTimeKorean(raw);
-        return rel;
+        const raw = data?.lastSeenAt; // 백엔드: LocalDateTime
+        return formatRelativeTimeKorean(raw);
     }, [data?.lastSeenAt]);
+
+    // ✅ 숫자 카운트업: "이전값 -> 현재값"
+    useEffect(() => {
+        const end = Number(data?.rate);
+        if (!Number.isFinite(end)) return;
+
+        const prev = prevRateRef.current;
+        const startValue = Number.isFinite(prev) ? prev : 0;
+
+        // 첫 렌더 시에도 깔끔하게
+        if (!Number.isFinite(prev)) setAnimatedRate(Number(startValue.toFixed(1)));
+
+        const duration = 800;
+        const startTime = performance.now();
+        let rafId = 0;
+
+        const animate = (now) => {
+            const elapsed = now - startTime;
+            const t = Math.min(elapsed / duration, 1);
+
+            // easeOutCubic
+            const eased = 1 - Math.pow(1 - t, 3);
+            const next = startValue + (end - startValue) * eased;
+
+            setAnimatedRate(Number(next.toFixed(1)));
+
+            if (t < 1) rafId = requestAnimationFrame(animate);
+            else {
+                setAnimatedRate(Number(end.toFixed(1)));
+                prevRateRef.current = end;
+            }
+        };
+
+        rafId = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(rafId);
+    }, [data?.rate]);
 
     return (
         <MotionCard
@@ -198,21 +209,14 @@ function ExchangeCard() {
                             transition={{ type: 'spring', stiffness: 280, damping: 18 }}
                             style={{ color: accent }}
                         >
-                            <motion.div
-                                animate={{ y: [0, -3, 0] }}
-                                transition={{ repeat: Infinity, duration: 2.6, ease: 'easeInOut' }}
-                            >
+                            <motion.div animate={{ y: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 2.6, ease: 'easeInOut' }}>
                                 <MonetizationOnIcon sx={{ fontSize: 56 }} />
                             </motion.div>
                         </motion.div>
                     )}
                 </MotionBox>
 
-                <Typography
-                    variant="h6"
-                    fontWeight="800"
-                    sx={{ mb: 1, color: '#111827', letterSpacing: '-0.01em' }}
-                >
+                <Typography variant="h6" fontWeight="800" sx={{ mb: 1, color: '#111827', letterSpacing: '-0.01em' }}>
                     오늘의 환율 (USD/KRW)
                 </Typography>
 
@@ -220,7 +224,7 @@ function ExchangeCard() {
                     <>
                         <Skeleton variant="text" width={180} height={54} sx={{ borderRadius: 2 }} />
                         <Skeleton variant="text" width={140} height={22} sx={{ borderRadius: 2 }} />
-                        <Skeleton variant="rounded" width={120} height={28} sx={{ mt: 2, borderRadius: 999 }} />
+                        <Skeleton variant="rounded" width={160} height={28} sx={{ mt: 2, borderRadius: 999 }} />
                     </>
                 ) : data ? (
                     <>
@@ -268,9 +272,7 @@ function ExchangeCard() {
                                 boxShadow: '0 8px 18px rgba(0,0,0,0.06)',
                             }}
                         >
-                            <Box sx={{ display: 'flex', alignItems: 'center', color: deltaColor }}>
-                                {deltaIcon}
-                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', color: deltaColor }}>{deltaIcon}</Box>
 
                             <Typography
                                 variant="body2"
@@ -284,7 +286,7 @@ function ExchangeCard() {
                             </Typography>
 
                             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                {delta === null ? ' (마지막 확인 기준 생성)' : ' (마지막 확인 대비)'}
+                                {delta === null ? '(기준 생성)' : '(마지막 확인 대비)'}
                             </Typography>
                         </Box>
 
@@ -307,7 +309,13 @@ function ExchangeCard() {
                                 boxShadow: '0 8px 18px rgba(0,0,0,0.06)',
                             }}
                         >
-                            {trend === 'up' ? '상승 흐름' : trend === 'down' ? '하락 흐름' : trend === 'flat' ? '변동 없음' : '개인화 기준 생성'}
+                            {trend === 'up'
+                                ? '상승 흐름'
+                                : trend === 'down'
+                                    ? '하락 흐름'
+                                    : trend === 'flat'
+                                        ? '변동 없음'
+                                        : '개인 기준 생성'}
                         </Box>
                     </>
                 ) : (

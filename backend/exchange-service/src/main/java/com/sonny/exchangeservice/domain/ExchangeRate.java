@@ -33,6 +33,8 @@ public class ExchangeRate {
     @Column(nullable = false)
     private LocalDate fetchedDate;
 
+    private LocalDateTime fetchedAt;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 }

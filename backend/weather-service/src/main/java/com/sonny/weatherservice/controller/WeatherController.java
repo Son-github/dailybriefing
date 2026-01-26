@@ -1,13 +1,11 @@
 package com.sonny.weatherservice.controller;
 
-import com.sonny.weatherservice.dto.WeatherResponse;
 import com.sonny.weatherservice.service.WeatherService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -19,9 +17,10 @@ public class WeatherController {
     private final WeatherService weatherService;
 
     @GetMapping("/summary")
-    @Operation(summary = "날씨 데이터 가져오기 및 저장", description = "공공데이터포털에서 날씨 데이터를 가져와 DB에 저장합니다.")
-    public Map<String, String> getWeatherSummary() {
-        return weatherService.getCurrentWeatherSummary();
+    @Operation(summary = "지역별 날씨 요약", description = "region(SEOUL/BUSAN/...)에 해당하는 날씨 요약을 반환합니다.")
+    public Map<String, String> getWeatherSummary(
+            @RequestParam(defaultValue = "SEOUL") String region
+    ) {
+        return weatherService.getCurrentWeatherSummary(region);
     }
 }
-

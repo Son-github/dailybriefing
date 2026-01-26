@@ -16,6 +16,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import AuthLayout from '../components/AuthLayout';
 import { login } from '../api/auth';
+import api from '../api/api'; // ✅ 추가: /auth/me 호출용
 
 function LoginPage() {
     const [form, setForm] = useState({ email: '', password: '' });
@@ -24,7 +25,6 @@ function LoginPage() {
     const [showPw, setShowPw] = useState(false);
     const navigate = useNavigate();
 
-    // ✅ 기존 컬러는 버튼/글로우에만 사용(배경은 AuthLayout에 맞춰 다크 글래스로)
     const themeColor = '#f76d57';
     const accent2 = '#ffb199';
 
@@ -54,8 +54,18 @@ function LoginPage() {
             // ✅ 토큰 저장
             localStorage.setItem('token', data.accessToken);
 
-            // ✅ (권장) lastSeen 개인화용 userId 저장 (응답 없으면 email로 임시)
-            localStorage.setItem('userId', data.userId || data.sub || form.email);
+            // ✅ userId는 일단 email로 저장(임시로 충분)
+            localStorage.setItem('userId', form.email);
+
+            // ✅ 로그인 직후 내 정보(선호지역) 캐시해두면 Dashboard/Weather가 편해짐
+            //    (실패해도 로그인은 성공 처리)
+            try {
+                const meRes = await api.get('/auth/me');
+                const region = meRes?.data?.weatherRegion || 'SEOUL';
+                localStorage.setItem('weatherRegion', region);
+            } catch (_) {
+                localStorage.setItem('weatherRegion', 'SEOUL');
+            }
 
             navigate('/dashboard');
         } catch (err) {
@@ -84,7 +94,7 @@ function LoginPage() {
                             fontWeight: 900,
                             letterSpacing: '-0.02em',
                             lineHeight: 1.1,
-                            color: 'rgba(255,255,255,0.92)', // ✅ 다크 배경 대비
+                            color: 'rgba(255,255,255,0.92)',
                         }}
                     >
                         Welcome back
@@ -95,20 +105,18 @@ function LoginPage() {
                     </Typography>
                 </Box>
 
-                {/* ✅ 폼 컨테이너: 밝은 흰색 박스 → 다크 글래스로 통일 */}
                 <Box
                     sx={{
                         position: 'relative',
                         borderRadius: 6,
                         p: 2.4,
-                        bgcolor: 'rgba(255,255,255,0.06)', // ✅ AuthLayout 카드 톤과 일치
+                        bgcolor: 'rgba(255,255,255,0.06)',
                         border: '1px solid rgba(255,255,255,0.10)',
                         backdropFilter: 'blur(12px)',
                         boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
                         overflow: 'hidden',
                     }}
                 >
-                    {/* subtle glow */}
                     <Box
                         sx={{
                             position: 'absolute',
@@ -135,7 +143,7 @@ function LoginPage() {
                             sx={{
                                 '& .MuiOutlinedInput-root': {
                                     borderRadius: 3,
-                                    bgcolor: 'rgba(255,255,255,0.06)', // ✅ 입력창도 글래스 톤
+                                    bgcolor: 'rgba(255,255,255,0.06)',
                                     color: 'rgba(255,255,255,0.88)',
                                     '& fieldset': { borderColor: 'rgba(255,255,255,0.16)' },
                                     '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.28)' },

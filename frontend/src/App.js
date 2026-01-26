@@ -4,6 +4,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import Dashboard from './pages/Dashboard';
 import SignUpPage from './pages/SignUpPage';
 import LoginPage from './pages/LoginPage';
+import MyPage from './pages/MyPage'; // ✅ 추가
 import axios from 'axios';
 
 const isAuthenticated = () => {
@@ -30,6 +31,7 @@ function App() {
                 <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
                 <Route path="/signup" element={<SignUpPage />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/mypage" element={<MyPage />} />
             </Routes>
         </BrowserRouter>
     );

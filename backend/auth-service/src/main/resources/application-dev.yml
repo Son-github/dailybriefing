@@ -1,26 +1,19 @@
-server:
-  port: ${SERVER_PORT:8081}
-  forward-headers-strategy: native
-
 spring:
   config:
     activate:
       on-profile: dev
 
   datasource:
-    # ✅ 로컬 단독 실행(default): localhost
-    # ✅ docker-compose(default): postgres (서비스명)
-    # 둘 중 하나로 쓰면 됨. docker-compose 쓰면 postgres가 더 편함.
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    # 로컬 단독 실행이면 localhost / compose면 postgres(서비스명)
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/dashboard}
+    username: ${SPRING_DATASOURCE_USERNAME:sonny}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
     hikari:
       initialization-fail-timeout: ${SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT:0}
 
   jpa:
     hibernate:
-      # 로컬에서는 create/update 편하게. 원하면 create-drop도 가능
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     show-sql: true
     properties:
@@ -28,42 +21,20 @@ spring:
         format_sql: true
     database-platform: org.hibernate.dialect.PostgreSQLDialect
 
-  jackson:
-    serialization:
-      fail-on-empty-beans: false
-
-  jwt:
-    # 로컬 개발용 기본값(⚠️ 운영에서 절대 쓰지 말 것)
-    secret: ${JWT_SECRET}
-
-management:
-  endpoints:
-    web:
-      base-path: /auth/actuator
-      exposure:
-        include: "health,info"
-  endpoint:
-    health:
-      probes:
-        enabled: true
-      show-details: always
+server:
+  port: ${SERVER_PORT:8081}
+  forward-headers-strategy: native
 
 logging:
   level:
     org.hibernate.SQL: debug
-    org.hibernate.type.descriptor.sql: off
     org.springframework.security: info
-    org.springframework.boot.actuate: debug
-    org.springframework.web: info
 
-springdoc:
-  api-docs:
-    path: /api-docs
-  swagger-ui:
-    path: /swagger-ui.html
-    operations-sorter: method
+jwt:
+  secret: ${JWT_SECRET:dev-secret-change-me-please-dev-secret-change-me}
+  access-validity-ms: ${JWT_ACCESS_VALIDITY_MS:3600000}
+  refresh-validity-ms: ${JWT_REFRESH_VALIDITY_MS:604800000}
 
 app:
   cors:
-    # 로컬 React / 로컬 프론트(3000) 기준
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}

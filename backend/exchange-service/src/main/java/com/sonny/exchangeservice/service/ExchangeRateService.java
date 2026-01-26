@@ -29,26 +29,23 @@ public class ExchangeRateService {
 
     private final WebClient webClient;
     private final ExchangeRateRepository repository;
-
-    // ✅ 신규
     private final ExchangeLastSeenRepository lastSeenRepository;
-
-    @Value("${external.exchange.api-url}")
-    private String apiUrl;
 
     @Value("${external.exchange.service-key}")
     private String serviceKey;
 
+    @Value("${exchange.cache-ttl-seconds:60}")
+    private long cacheTtlSeconds;
+
+    // ====== public API ======
+
     /**
-     * ✅ 유저 기준 "마지막으로 본 환율"까지 포함해서 반환
-     * - 호출 시 lastSeen을 현재 값으로 갱신(upsert)
+     * ✅ "거의 실시간" 최신 환율 + 유저 마지막 조회 대비 증감
      */
     @Transactional
     public ExchangeRateDto getLatestRateWithLastSeen(String userId) {
-        // 1) 기존 로직: 오늘(또는 전날) 캐시된 환율 가져오기
-        ExchangeRateDto current = getLatestRate(); // 기존 메서드 재사용
+        ExchangeRateDto current = getLatestRateFresh(); // ✅ TTL 기반
 
-        // 2) lastSeen 조회
         var lastOpt = lastSeenRepository.findByUserIdAndBaseCurrencyAndTargetCurrency(
                 userId, current.baseCurrency(), current.targetCurrency()
         );
@@ -62,19 +59,19 @@ public class ExchangeRateService {
             lastSeenAt = last.getLastSeenAt();
         }
 
-        // 3) lastSeen을 "현재값"으로 upsert 저장
+        // ✅ 이번 조회값을 "lastSeen"으로 저장
         ExchangeLastSeen toSave = ExchangeLastSeen.builder()
                 .userId(userId)
                 .baseCurrency(current.baseCurrency())
                 .targetCurrency(current.targetCurrency())
                 .lastSeenRate(current.rate())
                 .lastSeenAt(LocalDateTime.now())
+                // fetchedDate는 더 이상 "오늘"이 아니라, current.fetchedAt 기준 날짜로 저장
                 .lastFetchedDate(LocalDate.parse(current.fetchedDate()))
                 .build();
 
         lastSeenRepository.save(toSave);
 
-        // 4) 응답: 기존 정보 + lastSeen 정보
         return new ExchangeRateDto(
                 current.baseCurrency(),
                 current.targetCurrency(),
@@ -86,42 +83,47 @@ public class ExchangeRateService {
     }
 
     /**
-     * ✅ 기존 로직 유지: 오늘 캐시 없으면 외부 API로 가져와 저장
+     * ✅ TTL 기반 "거의 실시간" 환율
+     * - 최근 cacheTtlSeconds 이내에 가져온 값이 있으면 DB에서 사용
+     * - 없으면 외부 API 호출 후 저장
      */
-    public ExchangeRateDto getLatestRate() {
-        log.info("getLatestRate 시작");
-        LocalDate today = LocalDate.now();
+    public ExchangeRateDto getLatestRateFresh() {
+        log.info("getLatestRateFresh 시작 (ttl={}s)", cacheTtlSeconds);
 
-        return repository.findByBaseCurrencyAndTargetCurrencyAndFetchedDate("USD", "KRW", today)
+        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(cacheTtlSeconds);
+
+        return repository
+                .findTopByBaseCurrencyAndTargetCurrencyAndFetchedAtAfterOrderByFetchedAtDesc("USD", "KRW", cutoff)
                 .map(this::convertToDto)
-                .orElseGet(() -> fetchAndSave(today));
+                .orElseGet(this::fetchAndSaveNow);
     }
 
-    private ExchangeRateDto fetchAndSave(LocalDate date) {
-        log.info("💱 외부 API에서 환율 조회 시도: {}", date);
+    // ====== fetch + save ======
 
-        List<ExchangeResponseDto> response = fetchRateFromApi(date);
+    private ExchangeRateDto fetchAndSaveNow() {
+        // 수출입은행 API는 searchdate(yyyyMMdd)라서 "오늘" 데이터만 조회 가능
+        LocalDate today = LocalDate.now();
+        log.info("💱 외부 API에서 환율 조회 시도: {}", today);
 
-        // 🔁 오늘자 데이터가 없으면 전날로 fallback
+        List<ExchangeResponseDto> response = fetchRateFromApi(today);
+
+        // 오늘자 데이터가 없으면 전날 fallback
+        LocalDate usedDate = today;
         if (response == null || response.isEmpty()) {
-            log.warn("❗ 오늘({}) 환율 데이터 없음, 전날로 재시도", date);
-            LocalDate yesterday = date.minusDays(1);
+            log.warn("❗ 오늘({}) 환율 데이터 없음, 전날로 재시도", today);
+            LocalDate yesterday = today.minusDays(1);
             response = fetchRateFromApi(yesterday);
 
             if (response == null || response.isEmpty()) {
                 throw new RuntimeException("오늘 및 전날 환율 데이터 없음");
             }
-
-            date = yesterday;
+            usedDate = yesterday;
         }
 
         ExchangeResponseDto usd = response.stream()
                 .filter(dto -> "USD".equalsIgnoreCase(dto.getCurrencyUnit()))
                 .findFirst()
-                .orElseThrow(() -> {
-                    log.error("USD 환율 데이터 없음");
-                    return new RuntimeException("USD 환율 없음");
-                });
+                .orElseThrow(() -> new RuntimeException("USD 환율 없음"));
 
         double rate = Double.parseDouble(usd.getDealBasR().replace(",", ""));
 
@@ -129,7 +131,8 @@ public class ExchangeRateService {
                 .baseCurrency("USD")
                 .targetCurrency("KRW")
                 .rate(rate)
-                .fetchedDate(date)
+                .fetchedDate(usedDate)               // API 기준 날짜
+                .fetchedAt(LocalDateTime.now())      // ✅ 실시간 느낌을 위한 저장 시각
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -161,7 +164,6 @@ public class ExchangeRateService {
     }
 
     private ExchangeRateDto convertToDto(ExchangeRate e) {
-        // ✅ 기존 DTO 형태 유지 + 신규 필드는 null로
         return new ExchangeRateDto(
                 e.getBaseCurrency(),
                 e.getTargetCurrency(),
