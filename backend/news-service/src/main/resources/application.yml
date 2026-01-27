@@ -44,11 +44,7 @@ management:
     health:
       probes:
         enabled: true
-  health:
-    livenessstate:
-      enabled: true
-    readinessstate:
-      enabled: true
+
 
 # ====== 뉴스/트렌드/NLP 설정 ======
 app:
