@@ -68,6 +68,12 @@ logging:
     org.hibernate.type.descriptor.sql: trace
     org.springframework.security: info
 
+api:
+  bok:
+    key: ${BOK_API_KEY}
+  alpha:
+    key: %{ALPHA_API_KEY}
+
 springdoc:
   api-docs:
     path: /api-docs

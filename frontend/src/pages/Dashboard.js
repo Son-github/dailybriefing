@@ -8,7 +8,7 @@ import Header from '../components/Header';
 import WeatherCard from '../components/WeatherCard';
 import NewsCard from '../components/NewsCard';
 import ExchangeCard from '../components/ExchangeCard';
-import { logout as logoutApi } from '../api/auth';
+import { logout as logoutApi, clearLocalSession } from '../api/auth';
 import api from '../api/api';
 
 const MotionStack = motion.create(Stack);
@@ -26,9 +26,18 @@ function Dashboard() {
     const handleLogout = async () => {
         try {
             await logoutApi();
+        } catch (e) {
+            console.error('서버 로그아웃 실패', e);
         } finally {
-            navigate('/login');
+            clearLocalSession(); // 짧은 설명: 서버 성공 여부와 무관하게 프론트 세션 정리
+            navigate('/login', { replace: true });
         }
+    };
+
+    const forceLocalLogout = () => {
+        // 짧은 설명: 토큰 자체가 깨졌을 때는 서버 호출보다 로컬 정리가 우선
+        clearLocalSession();
+        navigate('/login', { replace: true });
     };
 
     const handleRefresh = () => {
@@ -37,17 +46,19 @@ function Dashboard() {
 
     useEffect(() => {
         const token = localStorage.getItem('token');
+        const cachedEmail = localStorage.getItem('userEmail') || '';
+
         if (!token) {
-            navigate('/login');
+            navigate('/login', { replace: true });
             return;
         }
 
         try {
             const decoded = jwtDecode(token);
-            setUserEmail(decoded?.email || '');
+            setUserEmail(decoded?.email || cachedEmail);
         } catch (e) {
             console.error('Invalid token:', e);
-            handleLogout();
+            forceLocalLogout();
         }
         // eslint-disable-next-line
     }, []);
@@ -56,72 +67,190 @@ function Dashboard() {
         <Box
             sx={{
                 minHeight: '100vh',
-                pb: 6,
+                pb: 7,
                 position: 'relative',
-                bgcolor: '#0b1220',
                 overflow: 'hidden',
+                background:
+                    'linear-gradient(180deg, #f5fbff 0%, #ffffff 42%, #eef7ff 100%)',
             }}
         >
-            {/* 배경 그라데이션 */}
             <Box
                 sx={{
                     position: 'absolute',
                     inset: 0,
                     pointerEvents: 'none',
-                    background:
-                        'radial-gradient(900px circle at 20% 10%, rgba(34,197,94,0.22), transparent 55%), radial-gradient(900px circle at 80% 20%, rgba(59,130,246,0.18), transparent 55%), radial-gradient(900px circle at 50% 90%, rgba(168,85,247,0.16), transparent 55%)',
-                    filter: 'blur(2px)',
+                    overflow: 'hidden',
                 }}
-            />
+            >
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        top: -120,
+                        left: -80,
+                        width: 260,
+                        height: 260,
+                        borderRadius: '50%',
+                        background:
+                            'radial-gradient(circle, rgba(125,211,252,0.45) 0%, rgba(125,211,252,0.12) 45%, rgba(125,211,252,0) 72%)',
+                        filter: 'blur(10px)',
+                    }}
+                />
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        top: 80,
+                        right: -90,
+                        width: 280,
+                        height: 280,
+                        borderRadius: '50%',
+                        background:
+                            'radial-gradient(circle, rgba(165,180,252,0.34) 0%, rgba(165,180,252,0.10) 45%, rgba(165,180,252,0) 72%)',
+                        filter: 'blur(12px)',
+                    }}
+                />
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        bottom: -120,
+                        left: '18%',
+                        width: 240,
+                        height: 240,
+                        borderRadius: '50%',
+                        background:
+                            'radial-gradient(circle, rgba(103,232,249,0.24) 0%, rgba(103,232,249,0.08) 45%, rgba(103,232,249,0) 72%)',
+                        filter: 'blur(12px)',
+                    }}
+                />
+            </Box>
 
-            {/* ✅ 헤더는 1개만: 로그아웃도 여기서 */}
-            <Header userEmail={userEmail} onLogout={handleLogout} />
+            <Header userEmail={userEmail} onLogout={handleLogout} onRefresh={handleRefresh} />
 
             <Container
                 maxWidth="sm"
                 sx={{
-                    mt: 0.5,
                     position: 'relative',
-                    px: { xs: 1.5, sm: 2 },
+                    mt: { xs: 0.5, sm: 1 },
+                    px: { xs: 1.6, sm: 2.2 },
                 }}
             >
-                {/* ✅ 헤더 아래 ‘간단한 인사 문구’만(헤더처럼 보이지 않게) */}
-                <Box sx={{ px: 0.5, mb: 1.6 }}>
-                    <Typography
-                        sx={{
-                            color: 'rgba(255,255,255,0.92)',
-                            fontWeight: 900,
-                            letterSpacing: '-0.02em',
-                            fontSize: 18,
-                            lineHeight: 1.15,
-                        }}
+                <Box
+                    sx={{
+                        px: 0.5,
+                        mb: 2.2,
+                    }}
+                >
+                    <motion.div
+                        initial={{ opacity: 0, y: 14 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.45 }}
                     >
-                        {displayName ? `${displayName}님, 오늘도 화이팅!` : '오늘도 화이팅!'}
-                    </Typography>
-                    <Typography sx={{ mt: 0.6, color: 'rgba(255,255,255,0.62)', fontSize: 13 }}>
-                        한 번의 새로고침으로 카드들이 최신 데이터로 갱신돼요.
-                    </Typography>
+                        <Box
+                            sx={{
+                                borderRadius: '28px',
+                                px: 2.2,
+                                py: 2.3,
+                                background:
+                                    'linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(240,249,255,0.96) 52%, rgba(224,242,254,0.92) 100%)',
+                                border: '1px solid rgba(255,255,255,0.85)',
+                                boxShadow: '0 12px 40px rgba(148, 163, 184, 0.14)',
+                                backdropFilter: 'blur(10px)',
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    px: 1.2,
+                                    py: 0.5,
+                                    mb: 1.2,
+                                    borderRadius: '999px',
+                                    bgcolor: 'rgba(14,165,233,0.10)',
+                                    color: '#0369a1',
+                                    fontSize: 11,
+                                    fontWeight: 800,
+                                    letterSpacing: '-0.01em',
+                                }}
+                            >
+                                Personalized Daily Briefing
+                            </Box>
 
-                    {/* ✅ 새로고침은 카드 영역에서 자연스럽게(텍스트 링크 느낌) */}
-                    <Typography
-                        onClick={handleRefresh}
-                        sx={{
-                            mt: 0.9,
-                            display: 'inline-block',
-                            fontSize: 12,
-                            fontWeight: 900,
-                            color: 'rgba(255,255,255,0.75)',
-                            cursor: 'pointer',
-                            textDecoration: 'underline',
-                            textUnderlineOffset: '3px',
-                            '&:hover': { color: 'rgba(255,255,255,0.9)' },
-                        }}
-                    >
-                        새로고침
-                    </Typography>
+                            <Typography
+                                sx={{
+                                    color: '#0f172a',
+                                    fontWeight: 900,
+                                    letterSpacing: '-0.04em',
+                                    fontSize: { xs: 24, sm: 28 },
+                                    lineHeight: 1.15,
+                                }}
+                            >
+                                {displayName
+                                    ? `${displayName}님, 오늘도 가볍게 시작해볼까요?`
+                                    : '오늘도 가볍게 시작해볼까요?'}
+                            </Typography>
+
+                            <Typography
+                                sx={{
+                                    mt: 1,
+                                    color: '#475569',
+                                    fontSize: 13.5,
+                                    lineHeight: 1.65,
+                                    fontWeight: 500,
+                                }}
+                            >
+                                서울 날씨, 환율, 시장 흐름, 뉴스 브리핑까지
+                                <br />
+                                한 화면에서 산뜻하게 확인해보세요.
+                            </Typography>
+
+                            <Box
+                                sx={{
+                                    mt: 1.6,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1.2,
+                                    flexWrap: 'wrap',
+                                }}
+                            >
+                                <Box
+                                    onClick={handleRefresh}
+                                    sx={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        px: 1.6,
+                                        py: 0.95,
+                                        borderRadius: '999px',
+                                        bgcolor: '#0f172a',
+                                        color: '#ffffff',
+                                        fontSize: 12,
+                                        fontWeight: 800,
+                                        letterSpacing: '-0.01em',
+                                        cursor: 'pointer',
+                                        boxShadow: '0 10px 24px rgba(15,23,42,0.14)',
+                                        transition: 'all 0.2s ease',
+                                        '&:hover': {
+                                            transform: 'translateY(-1px)',
+                                            boxShadow: '0 14px 28px rgba(15,23,42,0.18)',
+                                        },
+                                    }}
+                                >
+                                    새로고침
+                                </Box>
+
+                                <Typography
+                                    sx={{
+                                        fontSize: 12,
+                                        color: '#64748b',
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    카드 데이터가 최신 상태로 다시 불러와져요
+                                </Typography>
+                            </Box>
+                        </Box>
+                    </motion.div>
                 </Box>
 
-                {/* 카드 리스트 */}
                 <MotionStack
                     key={refreshKey}
                     spacing={2}
@@ -129,19 +258,40 @@ function Dashboard() {
                     animate="show"
                     variants={{
                         hidden: { opacity: 0 },
-                        show: { opacity: 1, transition: { staggerChildren: 0.08 } },
+                        show: {
+                            opacity: 1,
+                            transition: { staggerChildren: 0.08 },
+                        },
                     }}
                     sx={{ pb: 2 }}
                 >
-                    <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}>
+                    <motion.div
+                        variants={{
+                            hidden: { opacity: 0, y: 14 },
+                            show: { opacity: 1, y: 0 },
+                        }}
+                        transition={{ duration: 0.35 }}
+                    >
                         <WeatherCard api={api} />
                     </motion.div>
 
-                    <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}>
+                    <motion.div
+                        variants={{
+                            hidden: { opacity: 0, y: 14 },
+                            show: { opacity: 1, y: 0 },
+                        }}
+                        transition={{ duration: 0.35 }}
+                    >
                         <ExchangeCard api={api} />
                     </motion.div>
 
-                    <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}>
+                    <motion.div
+                        variants={{
+                            hidden: { opacity: 0, y: 14 },
+                            show: { opacity: 1, y: 0 },
+                        }}
+                        transition={{ duration: 0.35 }}
+                    >
                         <NewsCard api={api} />
                     </motion.div>
                 </MotionStack>
@@ -150,9 +300,11 @@ function Dashboard() {
                     variant="caption"
                     sx={{
                         display: 'block',
-                        mt: 1,
+                        mt: 1.4,
                         textAlign: 'center',
-                        color: 'rgba(255,255,255,0.45)',
+                        color: '#94a3b8',
+                        fontWeight: 600,
+                        letterSpacing: '-0.01em',
                     }}
                 >
                     Data updates automatically · Secure session with refresh cookies

@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +18,10 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+
+    // 운영 환경에서 HTTPS면 true 권장
+    @Value("${app.cookie.secure:false}")
+    private boolean cookieSecure;
 
     @Operation(summary = "회원가입")
     @PostMapping("/signup")
@@ -32,10 +37,12 @@ public class AuthController {
 
         ResponseCookie cookie = ResponseCookie.from("refreshToken", result.refreshToken())
                 .httpOnly(true)
+                .secure(cookieSecure) // 짧은 설명: HTTPS 운영 환경 대응
                 .path("/")
                 .maxAge(7 * 24 * 60 * 60)
                 .sameSite("Strict")
                 .build();
+
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
         return ResponseEntity.ok(AuthResponse.builder()
@@ -48,17 +55,19 @@ public class AuthController {
     @Operation(summary = "로그아웃")
     @PostMapping("/logout")
     public ResponseEntity<AuthResponse> logout(Authentication authentication, HttpServletResponse response) {
-        // ✅ 인증된 사용자만 로그아웃 (Authentication.getName() = email)
-        String email = authentication.getName();
-        authService.logout(email);
+        // 짧은 설명: 인증 객체가 없더라도 쿠키 삭제는 수행
+        if (authentication != null && authentication.getName() != null) {
+            authService.logout(authentication.getName());
+        }
 
-        // ✅ refreshToken 쿠키 삭제
         ResponseCookie deleteCookie = ResponseCookie.from("refreshToken", "")
                 .httpOnly(true)
+                .secure(cookieSecure) // 짧은 설명: 로그인 시와 동일한 옵션으로 삭제
                 .path("/")
                 .maxAge(0)
                 .sameSite("Strict")
                 .build();
+
         response.addHeader(HttpHeaders.SET_COOKIE, deleteCookie.toString());
 
         return ResponseEntity.ok(AuthResponse.builder()
@@ -72,15 +81,13 @@ public class AuthController {
             @CookieValue(value = "refreshToken", required = false) String refreshToken
     ) {
         String newAccessToken = authService.refreshAccessToken(refreshToken);
+
         return ResponseEntity.ok(AuthResponse.builder()
                 .accessToken(newAccessToken)
                 .tokenType("Bearer")
                 .message("재발급 완료")
                 .build());
     }
-
-    // ====== MyPage ======
-    // 아래 3개는 Security 설정상 인증 필요(Authorization Bearer token)
 
     @GetMapping("/me")
     public MeResponse me(Authentication authentication) {

@@ -9,7 +9,6 @@ import {
     IconButton,
     InputAdornment,
     Snackbar,
-    CircularProgress,
     Chip,
     Tooltip,
     Skeleton,
@@ -29,6 +28,9 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
+import PlaceRoundedIcon from '@mui/icons-material/PlaceRounded';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import LockRoundedIcon from '@mui/icons-material/LockRounded';
 
 import AuthLayout from '../components/AuthLayout';
 import api from '../api/api';
@@ -49,19 +51,15 @@ const normalizeRegion = (v) => {
 };
 
 export default function MyPage() {
-    const themeColor = '#f76d57';
-    const accent2 = '#ffb199';
-
-    // ✅ 웹에서도 모바일 레이아웃 고정
-    const isMobile = true;
+    const themeColor = '#38bdf8';
+    const accent2 = '#818cf8';
 
     const navigate = useNavigate();
 
     const [loadingMe, setLoadingMe] = useState(true);
-    const [me, setMe] = useState(null); // { email, weatherRegion }
+    const [me, setMe] = useState(null);
     const [region, setRegion] = useState('SEOUL');
 
-    // 비밀번호 입력(저장 버튼으로 함께 저장)
     const [pw, setPw] = useState({ currentPassword: '', newPassword: '' });
     const [showPw, setShowPw] = useState({ current: false, next: false });
 
@@ -116,47 +114,40 @@ export default function MyPage() {
         }
     };
 
-    // 변경사항 체크
     const regionChanged = useMemo(() => {
         if (!me) return false;
         return region && region !== me.weatherRegion;
     }, [me, region]);
 
-    // 비밀번호 변경 입력이 “둘 다” 들어오면 변경으로 간주
     const passwordChangeRequested = useMemo(() => {
         const cur = pw.currentPassword.trim();
         const next = pw.newPassword.trim();
-        return cur.length > 0 || next.length > 0; // 입력 시작만 해도 “요청” 상태
+        return cur.length > 0 || next.length > 0;
     }, [pw]);
 
-    // 실제로 저장 가능한 비번 조건(둘 다 있고, 새 비번 8자 이상)
     const passwordSavable = useMemo(() => {
         const cur = pw.currentPassword.trim();
         const next = pw.newPassword.trim();
-        if (cur.length === 0 && next.length === 0) return false; // 아예 안 바꾸는 경우
+        if (cur.length === 0 && next.length === 0) return false;
         return cur.length >= 1 && next.length >= 8;
     }, [pw]);
 
-    // 저장 버튼 활성화 조건: (지역 변경) or (비번 저장 가능)
     const canSave = useMemo(() => {
         return (regionChanged || passwordSavable) && !saving && !loadingMe;
     }, [regionChanged, passwordSavable, saving, loadingMe]);
 
-    // 되돌리기: 지역 + 비번 입력까지 “초기화”
     const handleReset = () => {
         setRegion(me?.weatherRegion || 'SEOUL');
         setPw({ currentPassword: '', newPassword: '' });
         toast('변경사항을 되돌렸어요.', 'info');
     };
 
-    // ✅ 저장 버튼 하나로 “지역 + 비밀번호” 같이 저장
     const handleSaveAll = async () => {
         if (saving || loadingMe) return;
 
-        // 아무것도 바꿀 게 없으면 안내
         if (!regionChanged && !passwordSavable) {
             if (passwordChangeRequested && !passwordSavable) {
-                toast('비밀번호는 “현재 비밀번호 + 새 비밀번호(8자 이상)”를 모두 입력해 주세요.', 'warning');
+                toast('비밀번호는 현재 비밀번호와 새 비밀번호(8자 이상)를 모두 입력해 주세요.', 'warning');
             } else {
                 toast('저장할 변경사항이 없어요.', 'info');
             }
@@ -167,14 +158,12 @@ export default function MyPage() {
         setError('');
 
         try {
-            // 1) 지역 저장
             if (regionChanged) {
                 await api.put('/auth/me/weather-region', { weatherRegion: region });
                 setMe((prev) => (prev ? { ...prev, weatherRegion: region } : prev));
                 localStorage.setItem('weatherRegion', region);
             }
 
-            // 2) 비밀번호 저장
             if (passwordSavable) {
                 await api.put('/auth/me/password', {
                     currentPassword: pw.currentPassword,
@@ -183,7 +172,6 @@ export default function MyPage() {
                 setPw({ currentPassword: '', newPassword: '' });
             }
 
-            // 토스트 메시지
             if (regionChanged && passwordSavable) {
                 toast('지역과 비밀번호를 저장했어요.');
             } else if (regionChanged) {
@@ -192,7 +180,6 @@ export default function MyPage() {
                 toast('비밀번호를 저장했어요.');
             }
 
-            // ✅ 저장 후 대시보드로 이동
             setTimeout(() => {
                 navigate('/dashboard', { replace: true });
             }, 650);
@@ -215,45 +202,56 @@ export default function MyPage() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ type: 'spring', stiffness: 260, damping: 22 }}
             >
-                {/* Title */}
-                <Box sx={{ mb: 2, textAlign: 'center' }}>
+                <Box sx={{ mb: 2.2, textAlign: 'center' }}>
                     <Typography
-                        variant="h6"
                         sx={{
                             fontWeight: 900,
-                            letterSpacing: '-0.02em',
-                            lineHeight: 1.1,
-                            color: 'rgba(255,255,255,0.92)',
+                            letterSpacing: '-0.04em',
+                            lineHeight: 1.08,
+                            color: '#0f172a',
+                            fontSize: { xs: 27, sm: 31 },
                         }}
                     >
                         마이페이지
                     </Typography>
-                    <Typography sx={{ mt: 0.8, color: 'rgba(255,255,255,0.62)' }} variant="body2">
-                        내 정보와 개인화 설정을 관리하세요
+                    <Typography
+                        sx={{
+                            mt: 1,
+                            color: '#64748b',
+                            fontSize: 14,
+                            lineHeight: 1.6,
+                            fontWeight: 500,
+                        }}
+                    >
+                        내 정보와 개인화 설정을
+                        <br />
+                        깔끔하게 관리해보세요
                     </Typography>
                 </Box>
 
-                {/* ✅ Always 1-column + space for bottom actions */}
                 <Box
                     sx={{
                         display: 'grid',
                         gap: 2,
                         gridTemplateColumns: '1fr',
                         alignItems: 'start',
-                        pb: 8,
+                        pb: 10,
                     }}
                 >
-                    {/* Profile/Personalization */}
-                    <GlassCard themeColor={themeColor} title="계정 정보" subtitle="이메일 · 선호 지역" icon={<PublicRoundedIcon />}>
+                    <GlassCard
+                        themeColor={themeColor}
+                        title="계정 정보"
+                        subtitle="이메일 · 선호 지역"
+                        icon={<PersonRoundedIcon />}
+                    >
                         {loadingMe ? (
                             <Box>
-                                <Skeleton height={28} sx={{ bgcolor: 'rgba(255,255,255,0.08)' }} />
-                                <Skeleton height={28} sx={{ bgcolor: 'rgba(255,255,255,0.08)' }} />
-                                <Skeleton height={64} sx={{ bgcolor: 'rgba(255,255,255,0.08)' }} />
+                                <Skeleton height={28} sx={{ borderRadius: 2 }} />
+                                <Skeleton height={28} sx={{ borderRadius: 2 }} />
+                                <Skeleton height={64} sx={{ borderRadius: 3 }} />
                             </Box>
                         ) : (
                             <>
-                                {/* Email row */}
                                 <Box
                                     sx={{
                                         display: 'flex',
@@ -264,14 +262,15 @@ export default function MyPage() {
                                     }}
                                 >
                                     <Box sx={{ minWidth: 0 }}>
-                                        <Typography sx={{ color: 'rgba(255,255,255,0.65)' }} variant="caption">
+                                        <Typography sx={{ color: '#64748b', fontWeight: 700 }} variant="caption">
                                             이메일
                                         </Typography>
                                         <Typography
                                             sx={{
-                                                color: 'rgba(255,255,255,0.92)',
+                                                color: '#0f172a',
                                                 fontWeight: 900,
                                                 wordBreak: 'break-word',
+                                                mt: 0.4,
                                             }}
                                         >
                                             {me?.email}
@@ -281,24 +280,20 @@ export default function MyPage() {
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         <Chip
                                             size="small"
-                                            icon={<ShieldRoundedIcon style={{ color: 'rgba(255,255,255,0.85)' }} />}
+                                            icon={<ShieldRoundedIcon style={{ color: '#0369a1' }} />}
                                             label="Protected"
                                             sx={{
-                                                color: 'rgba(255,255,255,0.88)',
-                                                bgcolor: 'rgba(255,255,255,0.10)',
-                                                border: '1px solid rgba(255,255,255,0.14)',
+                                                color: '#0369a1',
+                                                bgcolor: 'rgba(14,165,233,0.10)',
+                                                border: '1px solid rgba(14,165,233,0.14)',
                                                 fontWeight: 900,
+                                                borderRadius: '999px',
                                             }}
                                         />
                                         <Tooltip title={copied ? '복사됨!' : '이메일 복사'}>
                                             <IconButton
                                                 onClick={copyEmail}
-                                                sx={{
-                                                    color: 'rgba(255,255,255,0.85)',
-                                                    bgcolor: 'rgba(255,255,255,0.08)',
-                                                    border: '1px solid rgba(255,255,255,0.10)',
-                                                    '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
-                                                }}
+                                                sx={softIconButtonSx()}
                                             >
                                                 <ContentCopyIcon fontSize="small" />
                                             </IconButton>
@@ -306,31 +301,38 @@ export default function MyPage() {
                                     </Box>
                                 </Box>
 
-                                <Divider sx={{ my: 2, opacity: 0.25, borderColor: 'rgba(255,255,255,0.25)' }} />
+                                <Divider sx={{ my: 2, borderColor: 'rgba(203,213,225,0.7)' }} />
 
-                                {/* Region Select */}
-                                <Typography sx={{ color: 'rgba(255,255,255,0.86)', fontWeight: 900, mb: 0.8 }}>
+                                <Typography sx={{ color: '#0f172a', fontWeight: 900, mb: 0.8 }}>
                                     선호 지역
                                 </Typography>
 
                                 <FormControl fullWidth>
-                                    <InputLabel sx={{ color: 'rgba(255,255,255,0.65)' }}>선호 지역</InputLabel>
+                                    <InputLabel sx={{ color: '#64748b', fontWeight: 600 }}>
+                                        선호 지역
+                                    </InputLabel>
                                     <Select
                                         value={region}
                                         label="선호 지역"
                                         onChange={(e) => setRegion(normalizeRegion(e.target.value))}
                                         disabled={saving || loadingMe}
-                                        sx={glassSelectSx(themeColor)}
+                                        sx={softSelectSx(themeColor)}
                                         MenuProps={{
                                             PaperProps: {
                                                 sx: {
-                                                    bgcolor: 'rgba(20,20,20,0.95)',
-                                                    border: '1px solid rgba(255,255,255,0.10)',
-                                                    backdropFilter: 'blur(10px)',
-                                                    color: 'rgba(255,255,255,0.92)',
+                                                    bgcolor: '#ffffff',
+                                                    border: '1px solid rgba(226,232,240,0.9)',
+                                                    boxShadow: '0 12px 30px rgba(148,163,184,0.16)',
+                                                    color: '#0f172a',
+                                                    borderRadius: '16px',
                                                 },
                                             },
                                         }}
+                                        startAdornment={
+                                            <InputAdornment position="start">
+                                                <PlaceRoundedIcon sx={{ color: '#64748b', fontSize: 20, mr: 0.5 }} />
+                                            </InputAdornment>
+                                        }
                                     >
                                         {REGIONS.map((r) => (
                                             <MenuItem key={r.value} value={r.value}>
@@ -340,16 +342,20 @@ export default function MyPage() {
                                     </Select>
                                 </FormControl>
 
-                                <Typography sx={{ mt: 1.1, color: 'rgba(255,255,255,0.55)' }} variant="caption">
+                                <Typography sx={{ mt: 1.1, color: '#64748b', fontWeight: 600 }} variant="caption">
                                     저장하면 대시보드에 바로 반영됩니다.
                                 </Typography>
                             </>
                         )}
                     </GlassCard>
 
-                    {/* Password */}
-                    <GlassCard themeColor={themeColor} title="비밀번호" subtitle="저장 버튼으로 함께 반영" icon={<ShieldRoundedIcon />}>
-                        <Typography sx={{ color: 'rgba(255,255,255,0.62)' }} variant="body2">
+                    <GlassCard
+                        themeColor={accent2}
+                        title="비밀번호"
+                        subtitle="저장 버튼으로 함께 반영"
+                        icon={<LockRoundedIcon />}
+                    >
+                        <Typography sx={{ color: '#64748b', fontWeight: 500 }} variant="body2">
                             새 비밀번호는 8자 이상을 권장합니다.
                         </Typography>
 
@@ -361,8 +367,8 @@ export default function MyPage() {
                             value={pw.currentPassword}
                             onChange={(e) => setPw((p) => ({ ...p, currentPassword: e.target.value }))}
                             disabled={saving}
-                            InputLabelProps={{ style: { color: 'rgba(255,255,255,0.65)' } }}
-                            sx={glassTextFieldSx(themeColor)}
+                            InputLabelProps={{ style: { color: '#64748b', fontWeight: 600 } }}
+                            sx={softTextFieldSx(themeColor)}
                             InputProps={{
                                 endAdornment: (
                                     <InputAdornment position="end">
@@ -370,7 +376,7 @@ export default function MyPage() {
                                             onClick={() => setShowPw((v) => ({ ...v, current: !v.current }))}
                                             edge="end"
                                             disabled={saving}
-                                            sx={{ color: 'rgba(255,255,255,0.72)' }}
+                                            sx={{ color: '#64748b' }}
                                         >
                                             {showPw.current ? <VisibilityOffIcon /> : <VisibilityIcon />}
                                         </IconButton>
@@ -388,9 +394,9 @@ export default function MyPage() {
                             onChange={(e) => setPw((p) => ({ ...p, newPassword: e.target.value }))}
                             disabled={saving}
                             helperText="새 비밀번호는 8자 이상"
-                            FormHelperTextProps={{ style: { color: 'rgba(255,255,255,0.55)' } }}
-                            InputLabelProps={{ style: { color: 'rgba(255,255,255,0.65)' } }}
-                            sx={glassTextFieldSx(themeColor)}
+                            FormHelperTextProps={{ style: { color: '#64748b', fontWeight: 500 } }}
+                            InputLabelProps={{ style: { color: '#64748b', fontWeight: 600 } }}
+                            sx={softTextFieldSx(themeColor)}
                             InputProps={{
                                 endAdornment: (
                                     <InputAdornment position="end">
@@ -398,7 +404,7 @@ export default function MyPage() {
                                             onClick={() => setShowPw((v) => ({ ...v, next: !v.next }))}
                                             edge="end"
                                             disabled={saving}
-                                            sx={{ color: 'rgba(255,255,255,0.72)' }}
+                                            sx={{ color: '#64748b' }}
                                         >
                                             {showPw.next ? <VisibilityOffIcon /> : <VisibilityIcon />}
                                         </IconButton>
@@ -407,14 +413,12 @@ export default function MyPage() {
                             }}
                         />
 
-                        {/* 안내: 버튼 제거 요청이라 문구만 최소 */}
-                        <Typography sx={{ mt: 1.0, color: 'rgba(255,255,255,0.55)' }} variant="caption">
-                            비밀번호 변경은 하단 “저장”을 눌러 확정됩니다.
+                        <Typography sx={{ mt: 1, color: '#64748b', fontWeight: 600 }} variant="caption">
+                            비밀번호 변경은 하단 저장 버튼을 눌러 확정됩니다.
                         </Typography>
                     </GlassCard>
                 </Box>
 
-                {/* ✅ Fixed bottom actions (always) — session 문구 제거 완료 */}
                 {!loadingMe && (
                     <Box
                         sx={{
@@ -425,9 +429,9 @@ export default function MyPage() {
                             zIndex: 60,
                             p: 1.2,
                             pb: 1.6,
-                            backdropFilter: 'blur(14px)',
+                            backdropFilter: 'blur(16px)',
                             background:
-                                'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(10,10,10,0.85) 40%, rgba(10,10,10,0.92) 100%)',
+                                'linear-gradient(180deg, rgba(245,251,255,0) 0%, rgba(245,251,255,0.78) 38%, rgba(245,251,255,0.94) 100%)',
                         }}
                     >
                         <Box sx={{ maxWidth: 520, mx: 'auto' }}>
@@ -458,7 +462,14 @@ export default function MyPage() {
                 )}
 
                 {error && (
-                    <Alert severity="error" sx={{ mt: 2, borderRadius: 3 }}>
+                    <Alert
+                        severity="error"
+                        sx={{
+                            mt: 2,
+                            borderRadius: '18px',
+                            border: '1px solid rgba(239,68,68,0.16)',
+                        }}
+                    >
                         {error}
                     </Alert>
                 )}
@@ -472,7 +483,7 @@ export default function MyPage() {
                     <Alert
                         onClose={() => setSnack((s) => ({ ...s, open: false }))}
                         severity={snack.severity}
-                        sx={{ borderRadius: 3 }}
+                        sx={{ borderRadius: '18px' }}
                     >
                         {snack.message}
                     </Alert>
@@ -481,8 +492,6 @@ export default function MyPage() {
         </AuthLayout>
     );
 }
-
-/** ---------- UI helpers ---------- */
 
 function GlassCard({ title, subtitle, icon, themeColor, children }) {
     return (
@@ -493,12 +502,12 @@ function GlassCard({ title, subtitle, icon, themeColor, children }) {
             transition={{ type: 'spring', stiffness: 240, damping: 22 }}
             sx={{
                 position: 'relative',
-                borderRadius: 6,
-                p: { xs: 2.0, sm: 2.4 },
-                bgcolor: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.10)',
-                backdropFilter: 'blur(12px)',
-                boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
+                borderRadius: '28px',
+                p: { xs: 2.1, sm: 2.5 },
+                background:
+                    'linear-gradient(135deg, rgba(255,255,255,0.94) 0%, rgba(240,249,255,0.96) 52%, rgba(248,250,252,0.94) 100%)',
+                border: '1px solid rgba(255,255,255,0.92)',
+                boxShadow: '0 16px 40px rgba(148,163,184,0.14)',
                 overflow: 'hidden',
             }}
         >
@@ -507,30 +516,31 @@ function GlassCard({ title, subtitle, icon, themeColor, children }) {
                     position: 'absolute',
                     inset: 0,
                     pointerEvents: 'none',
-                    background: `radial-gradient(700px circle at 50% 0%, ${themeColor}22, transparent 60%)`,
+                    background: `radial-gradient(540px circle at 50% 0%, ${themeColor}16, transparent 62%)`,
                 }}
             />
             <Box sx={{ position: 'relative' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.3 }}>
                     <Box
                         sx={{
-                            width: 34,
-                            height: 34,
-                            borderRadius: 2.5,
+                            width: 38,
+                            height: 38,
+                            borderRadius: '14px',
                             display: 'grid',
                             placeItems: 'center',
-                            bgcolor: 'rgba(255,255,255,0.08)',
-                            border: '1px solid rgba(255,255,255,0.12)',
-                            color: 'rgba(255,255,255,0.88)',
+                            bgcolor: 'rgba(255,255,255,0.72)',
+                            border: '1px solid rgba(255,255,255,0.92)',
+                            color: '#334155',
+                            boxShadow: '0 8px 18px rgba(148,163,184,0.08)',
                         }}
                     >
                         {icon}
                     </Box>
                     <Box>
-                        <Typography sx={{ color: 'rgba(255,255,255,0.92)', fontWeight: 900 }} variant="subtitle1">
+                        <Typography sx={{ color: '#0f172a', fontWeight: 900 }} variant="subtitle1">
                             {title}
                         </Typography>
-                        <Typography sx={{ color: 'rgba(255,255,255,0.58)' }} variant="caption">
+                        <Typography sx={{ color: '#64748b', fontWeight: 600 }} variant="caption">
                             {subtitle}
                         </Typography>
                     </Box>
@@ -541,39 +551,60 @@ function GlassCard({ title, subtitle, icon, themeColor, children }) {
     );
 }
 
-function glassTextFieldSx(themeColor) {
+function softTextFieldSx(themeColor) {
     return {
         '& .MuiOutlinedInput-root': {
-            borderRadius: 3,
-            bgcolor: 'rgba(255,255,255,0.06)',
-            color: 'rgba(255,255,255,0.88)',
-            '& fieldset': { borderColor: 'rgba(255,255,255,0.16)' },
-            '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.28)' },
-            '&.Mui-focused fieldset': { borderColor: `${themeColor}88` },
+            borderRadius: '18px',
+            bgcolor: 'rgba(255,255,255,0.78)',
+            color: '#0f172a',
+            fontWeight: 600,
+            '& fieldset': { borderColor: 'rgba(203,213,225,0.9)' },
+            '&:hover fieldset': { borderColor: 'rgba(148,163,184,0.9)' },
+            '&.Mui-focused fieldset': {
+                borderColor: themeColor,
+                boxShadow: `0 0 0 3px ${themeColor}18`,
+            },
         },
     };
 }
 
-function glassSelectSx(themeColor) {
+function softSelectSx(themeColor) {
     return {
-        borderRadius: 3,
-        bgcolor: 'rgba(255,255,255,0.06)',
-        color: 'rgba(255,255,255,0.88)',
-        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.16)' },
-        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.28)' },
-        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: `${themeColor}88` },
-        '& .MuiSvgIcon-root': { color: 'rgba(255,255,255,0.80)' },
+        borderRadius: '18px',
+        bgcolor: 'rgba(255,255,255,0.78)',
+        color: '#0f172a',
+        fontWeight: 600,
+        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(203,213,225,0.9)' },
+        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(148,163,184,0.9)' },
+        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+            borderColor: themeColor,
+            boxShadow: `0 0 0 3px ${themeColor}18`,
+        },
+        '& .MuiSvgIcon-root': { color: '#64748b' },
+    };
+}
+
+function softIconButtonSx() {
+    return {
+        color: '#475569',
+        bgcolor: 'rgba(255,255,255,0.74)',
+        border: '1px solid rgba(255,255,255,0.92)',
+        boxShadow: '0 8px 18px rgba(148,163,184,0.08)',
+        '&:hover': {
+            bgcolor: 'rgba(255,255,255,0.96)',
+        },
     };
 }
 
 function primaryButtonSx(themeColor, accent2) {
     return {
         py: 1.2,
-        borderRadius: 3,
+        borderRadius: '18px',
         fontWeight: 900,
         textTransform: 'none',
+        color: '#fff',
         background: `linear-gradient(135deg, ${themeColor}, ${accent2})`,
-        boxShadow: `0 16px 34px ${themeColor}22`,
+        boxShadow: '0 16px 30px rgba(99,102,241,0.20)',
         '&:hover': {
             background: `linear-gradient(135deg, ${themeColor}, ${accent2})`,
             filter: 'brightness(0.98)',
@@ -586,15 +617,16 @@ function primaryButtonSx(themeColor, accent2) {
 function outlineButtonSx() {
     return {
         py: 1.2,
-        borderRadius: 3,
+        borderRadius: '18px',
         fontWeight: 900,
         textTransform: 'none',
-        color: 'rgba(255,255,255,0.85)',
-        borderColor: 'rgba(255,255,255,0.16)',
-        bgcolor: 'rgba(255,255,255,0.02)',
+        color: '#334155',
+        borderColor: 'rgba(203,213,225,0.9)',
+        bgcolor: 'rgba(255,255,255,0.72)',
+        boxShadow: '0 8px 18px rgba(148,163,184,0.08)',
         '&:hover': {
-            borderColor: 'rgba(255,255,255,0.26)',
-            bgcolor: 'rgba(255,255,255,0.05)',
+            borderColor: 'rgba(148,163,184,0.9)',
+            bgcolor: 'rgba(255,255,255,0.94)',
         },
     };
 }

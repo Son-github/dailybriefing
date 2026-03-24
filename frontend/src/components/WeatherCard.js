@@ -27,36 +27,115 @@ function WeatherCard() {
     const [loading, setLoading] = useState(true);
     const [region, setRegion] = useState('SEOUL');
     const [temperature, setTemperature] = useState('-');
-    const [sky, setSky] = useState('-'); // "맑음/구름많음/흐림/비/눈/소나기"
+    const [sky, setSky] = useState('-');
     const [baseDate, setBaseDate] = useState('');
     const [baseTime, setBaseTime] = useState('');
     const [error, setError] = useState('');
 
-    // 🎨 카드 톤(블루 계열)
-    const accent = '#3b82f6';
-
     const locationText = useMemo(() => REGION_LABEL[region] || '서울', [region]);
 
-    const iconEl = useMemo(() => {
-        if (!sky || sky === '-') return <CloudQueueRoundedIcon sx={{ fontSize: 56 }} />;
+    const weatherMeta = useMemo(() => {
+        if (!sky || sky === '-') {
+            return {
+                icon: <CloudQueueRoundedIcon sx={{ fontSize: 56 }} />,
+                iconColor: '#64748b',
+                badgeText: 'Weather Live',
+                bg: 'linear-gradient(135deg, #f8fbff 0%, #eef6ff 55%, #f8fbff 100%)',
+                orb: 'radial-gradient(circle, rgba(191,219,254,0.75) 0%, rgba(191,219,254,0.18) 48%, rgba(191,219,254,0) 72%)',
+                iconWrap: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(241,245,249,0.95) 100%)',
+            };
+        }
 
-        // PTY 우선 처리 결과가 sky에 들어올 수 있음: "비/눈/소나기"
-        if (sky.includes('소나기')) return <ThunderstormRoundedIcon sx={{ fontSize: 56 }} />;
-        if (sky.includes('비/눈')) return <UmbrellaRoundedIcon sx={{ fontSize: 56 }} />;
-        if (sky.includes('비')) return <UmbrellaRoundedIcon sx={{ fontSize: 56 }} />;
-        if (sky.includes('눈')) return <AcUnitRoundedIcon sx={{ fontSize: 56 }} />;
+        if (sky.includes('소나기')) {
+            return {
+                icon: <ThunderstormRoundedIcon sx={{ fontSize: 58 }} />,
+                iconColor: '#7c3aed',
+                badgeText: 'Shower Alert',
+                bg: 'linear-gradient(135deg, #f7f5ff 0%, #eef2ff 52%, #f5f3ff 100%)',
+                orb: 'radial-gradient(circle, rgba(196,181,253,0.72) 0%, rgba(196,181,253,0.16) 48%, rgba(196,181,253,0) 72%)',
+                iconWrap: 'linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(243,232,255,0.92) 100%)',
+            };
+        }
 
-        // SKY 기반
-        if (sky.includes('맑음')) return <WbSunnyRoundedIcon sx={{ fontSize: 56 }} />;
-        if (sky.includes('구름')) return <CloudRoundedIcon sx={{ fontSize: 56 }} />;
-        if (sky.includes('흐림')) return <CloudQueueRoundedIcon sx={{ fontSize: 56 }} />;
+        if (sky.includes('비/눈')) {
+            return {
+                icon: <UmbrellaRoundedIcon sx={{ fontSize: 56 }} />,
+                iconColor: '#2563eb',
+                badgeText: 'Rain & Snow',
+                bg: 'linear-gradient(135deg, #f4f8ff 0%, #e8f1ff 52%, #f8fbff 100%)',
+                orb: 'radial-gradient(circle, rgba(147,197,253,0.72) 0%, rgba(147,197,253,0.16) 48%, rgba(147,197,253,0) 72%)',
+                iconWrap: 'linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(239,246,255,0.94) 100%)',
+            };
+        }
 
-        return <CloudQueueRoundedIcon sx={{ fontSize: 56 }} />;
+        if (sky.includes('비')) {
+            return {
+                icon: <UmbrellaRoundedIcon sx={{ fontSize: 56 }} />,
+                iconColor: '#0284c7',
+                badgeText: 'Rainy Mood',
+                bg: 'linear-gradient(135deg, #f5fbff 0%, #ebf8ff 52%, #f8fcff 100%)',
+                orb: 'radial-gradient(circle, rgba(125,211,252,0.72) 0%, rgba(125,211,252,0.14) 48%, rgba(125,211,252,0) 72%)',
+                iconWrap: 'linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(240,249,255,0.94) 100%)',
+            };
+        }
+
+        if (sky.includes('눈')) {
+            return {
+                icon: <AcUnitRoundedIcon sx={{ fontSize: 56 }} />,
+                iconColor: '#38bdf8',
+                badgeText: 'Snow Day',
+                bg: 'linear-gradient(135deg, #f7fcff 0%, #eff8ff 52%, #f9fdff 100%)',
+                orb: 'radial-gradient(circle, rgba(186,230,253,0.72) 0%, rgba(186,230,253,0.16) 48%, rgba(186,230,253,0) 72%)',
+                iconWrap: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(240,249,255,0.95) 100%)',
+            };
+        }
+
+        if (sky.includes('맑음')) {
+            return {
+                icon: <WbSunnyRoundedIcon sx={{ fontSize: 58 }} />,
+                iconColor: '#f59e0b',
+                badgeText: 'Sunny Today',
+                bg: 'linear-gradient(135deg, #fffdf5 0%, #fff7d6 45%, #eef9ff 100%)',
+                orb: 'radial-gradient(circle, rgba(253,224,71,0.72) 0%, rgba(253,224,71,0.16) 48%, rgba(253,224,71,0) 72%)',
+                iconWrap: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(255,251,235,0.95) 100%)',
+            };
+        }
+
+        if (sky.includes('구름')) {
+            return {
+                icon: <CloudRoundedIcon sx={{ fontSize: 58 }} />,
+                iconColor: '#6366f1',
+                badgeText: 'Cloudy Sky',
+                bg: 'linear-gradient(135deg, #f8faff 0%, #edf2ff 52%, #f8fbff 100%)',
+                orb: 'radial-gradient(circle, rgba(165,180,252,0.72) 0%, rgba(165,180,252,0.16) 48%, rgba(165,180,252,0) 72%)',
+                iconWrap: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(238,242,255,0.94) 100%)',
+            };
+        }
+
+        if (sky.includes('흐림')) {
+            return {
+                icon: <CloudQueueRoundedIcon sx={{ fontSize: 58 }} />,
+                iconColor: '#64748b',
+                badgeText: 'Soft Cloud',
+                bg: 'linear-gradient(135deg, #fafcff 0%, #f1f5f9 52%, #f8fbff 100%)',
+                orb: 'radial-gradient(circle, rgba(203,213,225,0.78) 0%, rgba(203,213,225,0.18) 48%, rgba(203,213,225,0) 72%)',
+                iconWrap: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)',
+            };
+        }
+
+        return {
+            icon: <CloudQueueRoundedIcon sx={{ fontSize: 56 }} />,
+            iconColor: '#64748b',
+            badgeText: 'Weather Live',
+            bg: 'linear-gradient(135deg, #f8fbff 0%, #eef6ff 55%, #f8fbff 100%)',
+            orb: 'radial-gradient(circle, rgba(191,219,254,0.75) 0%, rgba(191,219,254,0.18) 48%, rgba(191,219,254,0) 72%)',
+            iconWrap: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(241,245,249,0.95) 100%)',
+        };
     }, [sky]);
 
     const weatherText = useMemo(() => {
-        if (sky === '-' || temperature === '-') return '데이터를 불러오는 중';
-        return `${sky} · 체감은 개인차가 있어요`;
+        if (sky === '-' || temperature === '-') return '최신 날씨 정보를 불러오는 중이에요';
+        return `${sky} · 지금 확인하기 좋은 날씨예요`;
     }, [sky, temperature]);
 
     useEffect(() => {
@@ -67,12 +146,10 @@ function WeatherCard() {
                 setLoading(true);
                 setError('');
 
-                // ✅ 마이페이지에서 저장한 지역(없으면 SEOUL)
                 const stored = localStorage.getItem('weatherRegion') || 'SEOUL';
                 const normalized = (stored || 'SEOUL').toUpperCase();
                 if (mounted) setRegion(normalized);
 
-                // ✅ 지역 파라미터로 호출
                 const res = await api.get(`/weather/summary?region=${encodeURIComponent(normalized)}`);
 
                 if (!mounted) return;
@@ -106,144 +183,276 @@ function WeatherCard() {
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
             whileHover={{ y: -4, scale: 1.01 }}
             sx={{
-                borderRadius: 6,
+                borderRadius: '30px',
                 overflow: 'hidden',
                 position: 'relative',
-                bgcolor: 'rgba(255,255,255,0.75)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255,255,255,0.6)',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+                background: weatherMeta.bg,
+                border: '1px solid rgba(255,255,255,0.92)',
+                boxShadow: '0 16px 40px rgba(148,163,184,0.16)',
+                backdropFilter: 'blur(12px)',
             }}
         >
-            {/* subtle gradient top glow */}
+            {/* 배경 포인트 */}
             <Box
                 sx={{
                     position: 'absolute',
                     inset: 0,
-                    background: `radial-gradient(600px circle at 50% 0%, ${accent}22, transparent 55%)`,
                     pointerEvents: 'none',
                 }}
-            />
+            >
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        top: -48,
+                        right: -18,
+                        width: 170,
+                        height: 170,
+                        borderRadius: '50%',
+                        background: weatherMeta.orb,
+                        filter: 'blur(4px)',
+                    }}
+                />
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        bottom: -58,
+                        left: -24,
+                        width: 150,
+                        height: 150,
+                        borderRadius: '50%',
+                        background:
+                            'radial-gradient(circle, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0) 74%)',
+                    }}
+                />
+            </Box>
 
             <CardContent
                 sx={{
-                    p: 4,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
+                    p: { xs: 2.3, sm: 3 },
                     position: 'relative',
                 }}
             >
-                {/* 위치 */}
-                <Typography
-                    variant="body2"
+                {/* 상단 라벨 */}
+                <Box
                     sx={{
-                        mb: 1,
-                        color: 'text.secondary',
-                        letterSpacing: '0.02em',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: 1.5,
                     }}
                 >
-                    {locationText} 날씨
-                </Typography>
-
-                {/* 아이콘 영역 */}
-                <MotionBox
-                    aria-label="weather-icon"
-                    initial={false}
-                    animate={loading ? { opacity: 0.9 } : { opacity: 1 }}
-                    transition={{ duration: 0.2 }}
-                    sx={{
-                        my: 2,
-                        width: 88,
-                        height: 88,
-                        borderRadius: 999,
-                        display: 'grid',
-                        placeItems: 'center',
-                        background: `linear-gradient(180deg, ${accent}22, rgba(255,255,255,0.35))`,
-                        border: '1px solid rgba(255,255,255,0.6)',
-                        boxShadow: '0 10px 24px rgba(0,0,0,0.06)',
-                    }}
-                >
-                    {loading ? (
-                        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}>
-                            <CircularProgress size={26} />
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key={sky}
-                            initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            transition={{ type: 'spring', stiffness: 280, damping: 18 }}
-                            style={{ color: accent }}
-                        >
-                            <motion.div animate={{ y: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}>
-                                {iconEl}
-                            </motion.div>
-                        </motion.div>
-                    )}
-                </MotionBox>
-
-                {/* 온도 & 설명 */}
-                {loading ? (
-                    <>
-                        <Skeleton variant="text" width={110} height={54} sx={{ borderRadius: 2 }} />
-                        <Skeleton variant="text" width={90} height={24} sx={{ borderRadius: 2 }} />
-                    </>
-                ) : error ? (
-                    <Typography color="error" sx={{ mt: 1 }}>
-                        {error}
-                    </Typography>
-                ) : (
-                    <>
+                    <Box>
                         <Typography
-                            variant="h3"
-                            fontWeight="800"
+                            sx={{
+                                fontSize: 12,
+                                fontWeight: 800,
+                                color: '#0ea5e9',
+                                letterSpacing: '-0.01em',
+                            }}
+                        >
+                            TODAY WEATHER
+                        </Typography>
+
+                        <Typography
                             sx={{
                                 mt: 0.5,
-                                color: '#1f2937',
-                                lineHeight: 1.1,
-                                letterSpacing: '-0.02em',
+                                fontSize: 22,
+                                lineHeight: 1.2,
+                                fontWeight: 900,
+                                letterSpacing: '-0.03em',
+                                color: '#0f172a',
                             }}
                         >
-                            {temperature !== '-' ? `${temperature}°C` : '-'}
+                            {locationText}
                         </Typography>
 
                         <Typography
-                            variant="body1"
                             sx={{
-                                mt: 1,
-                                color: 'text.secondary',
+                                mt: 0.4,
+                                fontSize: 13,
+                                color: '#64748b',
+                                fontWeight: 600,
                             }}
                         >
-                            {weatherText}
+                            지금 이 순간의 날씨를 확인해보세요
                         </Typography>
+                    </Box>
 
-                        {/* 발표시각(작게) */}
-                        {(baseDate || baseTime) && (
-                            <Typography variant="caption" sx={{ mt: 1, color: 'text.secondary' }}>
-                                발표: {baseDate} {baseTime}
-                            </Typography>
-                        )}
-
-                        {/* micro badge */}
+                    {!loading && !error && (
                         <Box
                             sx={{
-                                mt: 2,
                                 px: 1.2,
-                                py: 0.5,
+                                py: 0.7,
+                                borderRadius: '999px',
+                                background: 'rgba(255,255,255,0.72)',
+                                border: '1px solid rgba(255,255,255,0.88)',
+                                boxShadow: '0 8px 20px rgba(148,163,184,0.12)',
+                                fontSize: 11,
+                                fontWeight: 800,
+                                color: '#334155',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {weatherMeta.badgeText}
+                        </Box>
+                    )}
+                </Box>
+
+                {/* 메인 영역 */}
+                <Box
+                    sx={{
+                        mt: 2.2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 2,
+                    }}
+                >
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                        {loading ? (
+                            <>
+                                <Skeleton variant="text" width={110} height={56} sx={{ borderRadius: 2 }} />
+                                <Skeleton variant="text" width={150} height={26} sx={{ borderRadius: 2 }} />
+                                <Skeleton variant="text" width={120} height={18} sx={{ borderRadius: 2, mt: 1 }} />
+                            </>
+                        ) : error ? (
+                            <Typography
+                                sx={{
+                                    mt: 1,
+                                    color: '#dc2626',
+                                    fontSize: 14,
+                                    fontWeight: 700,
+                                }}
+                            >
+                                {error}
+                            </Typography>
+                        ) : (
+                            <>
+                                <Typography
+                                    sx={{
+                                        fontSize: { xs: 34, sm: 40 },
+                                        fontWeight: 900,
+                                        lineHeight: 1,
+                                        letterSpacing: '-0.04em',
+                                        color: '#0f172a',
+                                    }}
+                                >
+                                    {temperature !== '-' ? `${temperature}°C` : '-'}
+                                </Typography>
+
+                                <Typography
+                                    sx={{
+                                        mt: 1,
+                                        fontSize: 15,
+                                        fontWeight: 700,
+                                        color: '#334155',
+                                        lineHeight: 1.45,
+                                    }}
+                                >
+                                    {weatherText}
+                                </Typography>
+
+                                {(baseDate || baseTime) && (
+                                    <Typography
+                                        sx={{
+                                            mt: 1,
+                                            fontSize: 12,
+                                            color: '#64748b',
+                                            fontWeight: 600,
+                                        }}
+                                    >
+                                        발표 시각 · {baseDate} {baseTime}
+                                    </Typography>
+                                )}
+                            </>
+                        )}
+                    </Box>
+
+                    {/* 아이콘 */}
+                    <MotionBox
+                        aria-label="weather-icon"
+                        initial={false}
+                        animate={loading ? { opacity: 0.9 } : { opacity: 1 }}
+                        transition={{ duration: 0.2 }}
+                        sx={{
+                            width: { xs: 96, sm: 112 },
+                            height: { xs: 96, sm: 112 },
+                            borderRadius: '28px',
+                            display: 'grid',
+                            placeItems: 'center',
+                            background: weatherMeta.iconWrap,
+                            border: '1px solid rgba(255,255,255,0.92)',
+                            boxShadow: '0 14px 28px rgba(148,163,184,0.14)',
+                            flexShrink: 0,
+                        }}
+                    >
+                        {loading ? (
+                            <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+                            >
+                                <CircularProgress size={26} sx={{ color: '#0ea5e9' }} />
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key={sky}
+                                initial={{ opacity: 0, y: 8, scale: 0.94 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                transition={{ type: 'spring', stiffness: 280, damping: 18 }}
+                                style={{ color: weatherMeta.iconColor }}
+                            >
+                                <motion.div
+                                    animate={{ y: [0, -4, 0], rotate: [0, 1.5, -1.5, 0] }}
+                                    transition={{ repeat: Infinity, duration: 2.8, ease: 'easeInOut' }}
+                                >
+                                    {weatherMeta.icon}
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </MotionBox>
+                </Box>
+
+                {/* 하단 작은 정보칩 */}
+                {!loading && !error && (
+                    <Box
+                        sx={{
+                            mt: 2.4,
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 1,
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                px: 1.3,
+                                py: 0.75,
+                                borderRadius: '999px',
+                                bgcolor: 'rgba(255,255,255,0.72)',
+                                border: '1px solid rgba(255,255,255,0.92)',
+                                color: '#0f172a',
                                 fontSize: 12,
-                                borderRadius: 999,
-                                color: '#111827',
-                                background: 'rgba(255,255,255,0.65)',
-                                border: '1px solid rgba(255,255,255,0.7)',
-                                boxShadow: '0 8px 18px rgba(0,0,0,0.06)',
+                                fontWeight: 700,
+                                boxShadow: '0 8px 18px rgba(148,163,184,0.10)',
+                            }}
+                        >
+                            {sky}
+                        </Box>
+
+                        <Box
+                            sx={{
+                                px: 1.3,
+                                py: 0.75,
+                                borderRadius: '999px',
+                                bgcolor: 'rgba(255,255,255,0.60)',
+                                border: '1px solid rgba(255,255,255,0.88)',
+                                color: '#475569',
+                                fontSize: 12,
+                                fontWeight: 700,
                             }}
                         >
                             지역별 실시간 요약
                         </Box>
-                    </>
+                    </Box>
                 )}
             </CardContent>
         </MotionCard>

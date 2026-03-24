@@ -59,3 +59,5 @@ app:
     # ✅ 운영은 반드시 CloudFront 도메인 넣기(ENV로 강제하는 게 안전)
     # 예: https://dxxxx.cloudfront.net
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
+  cookie:
+    secure: true
