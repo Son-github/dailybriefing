@@ -7,20 +7,23 @@ import com.sonny.newsservice.dto.*;
 import com.sonny.newsservice.repository.FetchRunRepository;
 import com.sonny.newsservice.repository.KeywordStatRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
+import java.time.Duration;
 import java.util.*;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class NewsFacadeService {
 
     private final GoogleNewsRssClient rssClient;
     private final KeywordExtractor keywordExtractor;
     private final TrendScoringService trendScoringService;
-    private final NlpClient nlpClient;
 
     private final FetchRunRepository fetchRunRepository;
     private final KeywordStatRepository keywordStatRepository;
@@ -39,18 +42,40 @@ public class NewsFacadeService {
     @Value("${app.news.trend.max-keywords:5}")
     private int trendLimit;
 
+    @Value("${app.data-refresh-ms:600000}")
+    private long refreshMs;
+
+    private volatile NewsBriefResponse cached;
+    private volatile OffsetDateTime cachedAt;
+
     public NewsBriefResponse fetchBrief() {
+        if (cached == null || cachedAt == null || Duration.between(cachedAt, OffsetDateTime.now()).toMillis() >= refreshMs) {
+            refresh();
+        }
+        return cached;
+    }
+
+    @Scheduled(fixedDelayString = "${app.data-refresh-ms:600000}", initialDelayString = "${app.data-refresh-ms:600000}")
+    public synchronized void refresh() {
         OffsetDateTime fetchedAt = OffsetDateTime.now();
 
-        // 1) RSS 한 번만 가져오고 (top10/ top50 둘 다 여기서 뽑는다)
-        List<SyndEntry> entries = rssClient.fetch(rssUrl);
+        List<SyndEntry> entries;
+        try {
+            entries = rssClient.fetch(rssUrl);
+        } catch (Exception e) {
+            if (cached != null) {
+                log.warn("News RSS refresh failed; returning cached news: {}", e.getMessage());
+                cached.setStale(true);
+                return;
+            }
+            throw e;
+        }
 
         List<SyndEntry> top10 = entries.stream().limit(topN).toList();
         List<SyndEntry> topForTrend = entries.stream().limit(trendSourceTopN).toList();
 
-        // 2) Top10: 화면 표시용 + 감성분석 입력
+        // 이전에는 Top10을 NLP 서비스에 보냈다. 지금은 원문 링크와 제목만 제공한다.
         List<NewsTopItemDto> newsTop10 = new ArrayList<>();
-        List<String> titlesForNlp = new ArrayList<>();
 
         for (int i = 0; i < top10.size(); i++) {
             SyndEntry e = top10.get(i);
@@ -64,35 +89,7 @@ public class NewsFacadeService {
                     .publishedAt(e.getPublishedDate() != null ? e.getPublishedDate().toString() : null)
                     .build());
 
-            titlesForNlp.add(normalizedTitle);
         }
-
-        // 3) NLP 감성 batch → Top10에만 적용 (비용 절감)
-        List<NlpClient.SentimentItem> sentiments = nlpClient.analyzeBatch(titlesForNlp);
-
-        int pos = 0, neg = 0, neu = 0;
-        double sum = 0.0;
-
-        for (int i = 0; i < newsTop10.size(); i++) {
-            NlpClient.SentimentItem s = sentiments.get(i);
-            NewsTopItemDto item = newsTop10.get(i);
-
-            item.setSentimentLabel(s.label());
-            item.setSentimentScore(s.score());
-
-            sum += s.score();
-            if ("POSITIVE".equals(s.label())) pos++;
-            else if ("NEGATIVE".equals(s.label())) neg++;
-            else neu++;
-        }
-
-        SentimentSummaryDto sentimentSummary = SentimentSummaryDto.builder()
-                .positiveCount(pos)
-                .negativeCount(neg)
-                .neutralCount(neu)
-                .total(newsTop10.size())
-                .averageScore(newsTop10.isEmpty() ? 0.0 : (sum / newsTop10.size()))
-                .build();
 
         // 4) TrendTop50: 제목만으로 키워드 카운트 (비용/시간 절감)
         Map<String, Integer> currentKeywordCounts = new HashMap<>();
@@ -131,12 +128,13 @@ public class NewsFacadeService {
         List<TrendBadgeDto> trendTop5 =
                 trendScoringService.makeTrendTop(currentKeywordCounts, prevKeywordCounts, trendLimit);
 
-        return NewsBriefResponse.builder()
+        cached = NewsBriefResponse.builder()
                 .fetchedAt(fetchedAt)
                 .sourceUrl(rssUrl)
                 .newsTop10(newsTop10)
                 .trendTop5(trendTop5)
-                .sentimentSummary(sentimentSummary)
+                .stale(false)
                 .build();
+        cachedAt = fetchedAt;
     }
 }

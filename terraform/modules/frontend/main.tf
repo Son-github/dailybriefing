@@ -24,6 +24,55 @@ resource "aws_cloudfront_origin_access_control" "oac" {
   signing_protocol                  = "sigv4"
 }
 
+resource "aws_cloudfront_cache_policy" "api_disabled" {
+  name        = "${var.name}-api-cache-disabled"
+  default_ttl = 0
+  max_ttl     = 0
+  min_ttl     = 0
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+    cookies_config { cookie_behavior = "none" }
+    headers_config { header_behavior = "none" }
+    query_strings_config { query_string_behavior = "none" }
+  }
+}
+
+resource "aws_cloudfront_origin_request_policy" "api" {
+  name = "${var.name}-api-origin-request"
+
+  cookies_config { cookie_behavior = "all" }
+  query_strings_config { query_string_behavior = "all" }
+  headers_config {
+    header_behavior = "whitelist"
+    headers {
+      items = [
+        "Authorization",
+        "Content-Type",
+        "Origin",
+        "Access-Control-Request-Headers",
+        "Access-Control-Request-Method"
+      ]
+    }
+  }
+}
+
+resource "aws_cloudfront_function" "spa_rewrite" {
+  name    = "${var.name}-spa-rewrite"
+  runtime = "cloudfront-js-1.0"
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      if (!request.uri.includes('.')) {
+        request.uri = '/index.html';
+      }
+      return request;
+    }
+  EOT
+}
+
 resource "aws_cloudfront_distribution" "cdn" {
   enabled             = true
   default_root_object = var.index_document
@@ -33,6 +82,18 @@ resource "aws_cloudfront_distribution" "cdn" {
     domain_name              = aws_s3_bucket.site.bucket_regional_domain_name
     origin_id                = "s3-origin-${aws_s3_bucket.site.id}"
     origin_access_control_id = aws_cloudfront_origin_access_control.oac.id
+  }
+
+  origin {
+    domain_name = var.alb_dns_name
+    origin_id   = "alb-api"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
   }
 
   default_cache_behavior {
@@ -48,21 +109,26 @@ resource "aws_cloudfront_distribution" "cdn" {
         forward = "none"
       }
     }
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.spa_rewrite.arn
+    }
   }
 
-  # ✅ SPA(React) 라우팅: /dashboard 같은 경로도 index.html로 처리
-  custom_error_response {
-    error_code            = 403
-    response_code         = 200
-    response_page_path    = "/${var.index_document}"
-    error_caching_min_ttl = 0
-  }
-
-  custom_error_response {
-    error_code            = 404
-    response_code         = 200
-    response_page_path    = "/${var.index_document}"
-    error_caching_min_ttl = 0
+  # 이전에는 모든 경로가 S3로 향했다. API 경로만 ALB로 보내고 캐시는 끈다.
+  dynamic "ordered_cache_behavior" {
+    for_each = toset(["/auth*", "/exchange*", "/weather*", "/news*"])
+    content {
+      path_pattern             = ordered_cache_behavior.value
+      target_origin_id         = "alb-api"
+      viewer_protocol_policy   = "redirect-to-https"
+      allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+      cached_methods           = ["GET", "HEAD", "OPTIONS"]
+      cache_policy_id          = aws_cloudfront_cache_policy.api_disabled.id
+      origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id
+      compress                 = true
+    }
   }
 
   restrictions {

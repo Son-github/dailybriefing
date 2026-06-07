@@ -46,18 +46,16 @@ management:
         enabled: true
 
 
-# ====== 뉴스/트렌드/NLP 설정 ======
 app:
+  data-refresh-ms: ${DATA_REFRESH_INTERVAL_MS:600000}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}
   news:
     rss-url: ${NEWS_RSS_URL:https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko}
     top-n: ${NEWS_TOP_N:10}
     trend:
       source-top-n: ${NEWS_TREND_SOURCE_TOP_N:50}   # ✅ 트렌드 계산에 사용할 뉴스 개수
       max-keywords: ${NEWS_TREND_MAX_KEYWORDS:5}    # ✅ 화면에 보여줄 트렌드 키워드 수
-
-  nlp:
-    # ✅ news-nlp-service 내부 통신 주소 (ECS Service Discovery/CloudMap 권장)
-    base-url: ${NLP_BASE_URL:http://news-nlp-service:8090}
 
   http:
     connect-timeout-ms: ${HTTP_CONNECT_TIMEOUT_MS:2000}

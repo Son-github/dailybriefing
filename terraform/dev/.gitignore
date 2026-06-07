@@ -1,8 +1,9 @@
 # Terraform
 .terraform/
-.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
+*.tfvars
+!terraform.tfvars.example
 crash.log
 
 # 환경 변수

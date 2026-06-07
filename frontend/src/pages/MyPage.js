@@ -23,7 +23,6 @@ import { useNavigate } from 'react-router-dom';
 
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ShieldRoundedIcon from '@mui/icons-material/ShieldRounded';
-import PublicRoundedIcon from '@mui/icons-material/PublicRounded';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';

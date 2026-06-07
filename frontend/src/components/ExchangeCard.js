@@ -414,7 +414,7 @@ function ExchangeCard() {
                     {!loading && (
                         <Chip
                             icon={<AutoAwesomeRoundedIcon sx={{ fontSize: '16px !important' }} />}
-                            label="Market Live"
+                            label={data?.stale ? 'Cached Market' : 'Market Live'}
                             size="small"
                             sx={{
                                 height: 32,

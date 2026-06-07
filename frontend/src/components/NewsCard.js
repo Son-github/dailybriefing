@@ -13,7 +13,6 @@ import {
 import LaunchIcon from '@mui/icons-material/Launch';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded';
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import { motion } from 'framer-motion';
 import api from '../api/api';
 
@@ -158,7 +157,7 @@ function NewsCard() {
                                 color: '#0f172a',
                             }}
                         >
-                            AI Briefing Top 10
+                            News Briefing Top 10
                         </Typography>
 
                         <Typography
@@ -175,7 +174,6 @@ function NewsCard() {
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Chip
-                            icon={<AutoAwesomeRoundedIcon sx={{ fontSize: '16px !important' }} />}
                             label="TOP 10"
                             size="small"
                             sx={{

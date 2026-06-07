@@ -12,16 +12,14 @@ ecs_c_cidr    = "10.0.4.0/24"
 db_a_cidr     = "10.0.10.0/24"
 db_c_cidr     = "10.0.12.0/24"
 
-db_password = "진짜_강력한_비번_넣기"
-
 services = {
   auth-service = {
-    container_port     = 8081
-    desired_count      = 1
-    cpu                = 256
-    memory             = 512
-    path_prefix        = "/auth"
-    health_check_path  = "/actuator/health"
+    container_port    = 8081
+    desired_count     = 1
+    cpu               = 256
+    memory            = 512
+    path_prefix       = "/auth"
+    health_check_path = "/auth/actuator/health"
     env = {
       SPRING_PROFILES_ACTIVE = "prod"
       SERVER_PORT            = "8081"
@@ -29,12 +27,12 @@ services = {
   }
 
   exchange-service = {
-    container_port     = 8082
-    desired_count      = 1
-    cpu                = 256
-    memory             = 512
-    path_prefix        = "/exchange"
-    health_check_path  = "/actuator/health"
+    container_port    = 8082
+    desired_count     = 1
+    cpu               = 256
+    memory            = 512
+    path_prefix       = "/exchange"
+    health_check_path = "/actuator/health"
     env = {
       SPRING_PROFILES_ACTIVE = "prod"
       SERVER_PORT            = "8082"
@@ -42,12 +40,12 @@ services = {
   }
 
   weather-service = {
-    container_port     = 8083
-    desired_count      = 1
-    cpu                = 256
-    memory             = 512
-    path_prefix        = "/weather"
-    health_check_path  = "/actuator/health"
+    container_port    = 8083
+    desired_count     = 1
+    cpu               = 256
+    memory            = 512
+    path_prefix       = "/weather"
+    health_check_path = "/actuator/health"
     env = {
       SPRING_PROFILES_ACTIVE = "prod"
       SERVER_PORT            = "8083"
@@ -55,12 +53,12 @@ services = {
   }
 
   news-service = {
-    container_port     = 8084
-    desired_count      = 1
-    cpu                = 256
-    memory             = 512
-    path_prefix        = "/news"
-    health_check_path  = "/actuator/health"
+    container_port    = 8084
+    desired_count     = 1
+    cpu               = 256
+    memory            = 512
+    path_prefix       = "/news"
+    health_check_path = "/actuator/health"
     env = {
       SPRING_PROFILES_ACTIVE = "prod"
       SERVER_PORT            = "8084"

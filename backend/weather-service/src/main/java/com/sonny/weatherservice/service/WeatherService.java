@@ -12,8 +12,10 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.net.URI;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -29,6 +31,11 @@ public class WeatherService {
 
     @Value("${external.weather.service-key}")
     private String apiKey;
+
+    @Value("${app.data-refresh-ms:600000}")
+    private long refreshMs;
+
+    private final Map<String, CachedWeather> cache = new ConcurrentHashMap<>();
 
     // ✅ region -> nx, ny (대표 격자)
     // 필요하면 구/군 단위로 더 쪼갤 수 있음
@@ -57,6 +64,10 @@ public class WeatherService {
     public Map<String, String> getCurrentWeatherSummary(String regionRaw) {
         String region = normalizeRegion(regionRaw);
         Grid grid = REGION_GRID.get(region);
+        CachedWeather cached = cache.get(region);
+        if (cached != null && Duration.between(cached.cachedAt(), LocalDateTime.now()).toMillis() < refreshMs) {
+            return cached.value();
+        }
 
         try {
             // 1) API 호출
@@ -89,16 +100,19 @@ public class WeatherService {
             );
 
             // 5) 프론트로 간단 요약 리턴 (+region 포함)
-            return Map.of(
+            Map<String, String> result = Map.of(
                     "region", region,
                     "temperature", temperature,
                     "sky", skyText,
                     "baseDate", baseDate,
                     "baseTime", baseTime
             );
+            cache.put(region, new CachedWeather(result, LocalDateTime.now()));
+            return result;
 
         } catch (Exception e) {
             log.error("날씨 데이터 처리 실패: {}", e.getMessage(), e);
+            if (cached != null) return cached.value();
             throw new RuntimeException("날씨 데이터 처리 실패", e);
         }
     }
@@ -129,20 +143,20 @@ public class WeatherService {
      */
     private String fetchWeatherFromApi(String nx, String ny) {
         LocalDateTime now = LocalDateTime.now();
-        String baseDate = now.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String baseTime = getBaseTime(now);
+        ForecastBase forecastBase = getForecastBase(now);
 
         String url = apiUrl +
                 "?serviceKey=" + apiKey +
                 "&numOfRows=100" +
                 "&pageNo=1" +
-                "&base_date=" + baseDate +
-                "&base_time=" + baseTime +
+                "&base_date=" + forecastBase.date() +
+                "&base_time=" + forecastBase.time() +
                 "&nx=" + nx +
                 "&ny=" + ny +
                 "&dataType=JSON";
 
-        log.info("요청 URL(region grid): nx={}, ny={}, url={}", nx, ny, url);
+        // 이전에는 serviceKey가 포함된 전체 URL을 로그로 남겼다. 키 노출 방지를 위해 격자만 기록한다.
+        log.info("Weather request grid: nx={}, ny={}", nx, ny);
 
         return customWebClient.get()
                 .uri(URI.create(url))
@@ -167,11 +181,14 @@ public class WeatherService {
                 .orElse("-");
     }
 
-    private String getBaseTime(LocalDateTime now) {
-        int minute = now.getMinute();
-        int hour = now.getHour();
-        if (minute < 30) hour -= 1;
-        if (hour < 0) hour = 23;
-        return String.format("%02d30", hour);
+    private ForecastBase getForecastBase(LocalDateTime now) {
+        LocalDateTime base = now.getMinute() < 30 ? now.minusHours(1) : now;
+        return new ForecastBase(
+                base.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
+                String.format("%02d30", base.getHour())
+        );
     }
+
+    private record CachedWeather(Map<String, String> value, LocalDateTime cachedAt) {}
+    private record ForecastBase(String date, String time) {}
 }

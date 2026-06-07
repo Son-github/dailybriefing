@@ -1,115 +1,50 @@
+# 공통 컨테이너 구성이다. 로컬 실행 시 docker-compose.local.yml과 함께 사용한다.
+# AWS 운영 배포는 이 파일을 사용하지 않고 terraform/의 ECS 정의만 사용한다.
 services:
-  postgres:
-    image: postgres:15
-    container_name: postgres
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
+  api-gateway:
+    image: nginx:alpine
+    depends_on:
+      - auth-service
+      - exchange-service
+      - weather-service
+      - news-service
+    volumes:
+      - ./backend/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./backend/nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - backend-net
-    volumes:
-      - pgdata:/var/lib/postgresql/data
 
   auth-service:
     build:
       context: ./backend/auth-service
-    container_name: auth-service
-    ports:
-      - "8081:8081"
     networks:
       - backend-net
-    depends_on:
-      - postgres
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRATION_NS=${JWT_EXPIRATION_MS}
 
   exchange-service:
     build:
       context: ./backend/exchange-service
-    container_name: exchange-service
-    ports:
-      - "8082:8082"
     networks:
       - backend-net
-    depends_on:
-      - postgres
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - EXCHANGE_API_KEY=${EXCHANGE_API_KEY}
 
   weather-service:
     build:
       context: ./backend/weather-service
-    container_name: weather-service
-    ports:
-      - "8083:8083"
     networks:
       - backend-net
-    depends_on:
-      - postgres
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - WEATHER_API_KEY=${WEATHER_API_KEY}
 
   news-service:
     build:
-      context: ./backend/news-service/backend
-    container_name: news-service
-    ports:
-      - "8084:8084"
-    networks:
-      - backend-net
-    depends_on:
-      - postgres
-      - sentiment
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-
-  sentiment:
-    build:
-      context: ./backend/news-service/sentiment
-    container_name: sentiment
-    ports:
-      - "5001:5000"
+      context: ./backend/news-service
     networks:
       - backend-net
 
   frontend:
     build:
       context: ./frontend
-    container_name: frontend
-    ports:
-      - "3000:80" # 3000으로 접속하면 Nginx로 라우팅
+    depends_on:
+      - api-gateway
     networks:
       - backend-net
-    depends_on:
-      - auth-service
-      - exchange-service
-#      - weather-service
 
 networks:
   backend-net:
-
-volumes:
-  pgdata:
