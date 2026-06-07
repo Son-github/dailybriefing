@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - "frontend/**"
-      - ".github/workflows/frontend-deploy.yml"
+      - ".github/workflows/frontend-ci.yml"
 
 permissions:
   contents: read
@@ -35,11 +35,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build (inject API base URL)
+      - name: Build for same-origin CloudFront API
         run: |
-          echo "REACT_APP_API_BASE_URL=${{ secrets.API_BASE_URL }}" > .env.production
-          echo "[debug] .env.production:"
-          cat .env.production
+          echo "REACT_APP_DATA_REFRESH_INTERVAL_MS=600000" > .env.production
           CI=false npm run build
 
       - name: Configure AWS credentials

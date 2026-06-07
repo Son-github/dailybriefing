@@ -50,13 +50,17 @@ variable "common_env" {
 }
 
 # common_secrets = { JWT_SECRET = "/dailybriefing/jwt/secret" }  # Secrets Manager "name"
-variable "common_secrets" {
+variable "common_secret_values" {
   type    = map(string)
   default = {}
 }
 
-# Fargate 기준
+variable "secret_arns" {
+  type    = set(string)
+  default = []
+}
+
 variable "assign_public_ip" {
   type    = bool
-  default = false
+  default = true
 }

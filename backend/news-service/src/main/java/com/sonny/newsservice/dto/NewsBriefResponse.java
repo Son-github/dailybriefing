@@ -13,6 +13,5 @@ public class NewsBriefResponse {
 
     private List<NewsTopItemDto> newsTop10;
     private List<TrendBadgeDto> trendTop5;
-
-    private SentimentSummaryDto sentimentSummary;
+    private boolean stale;
 }

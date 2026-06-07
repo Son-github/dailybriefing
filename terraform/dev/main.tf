@@ -22,7 +22,19 @@ module "vpc" {
   db_a_cidr     = var.db_a_cidr
   db_c_cidr     = var.db_c_cidr
 
-  enable_nat_gateway = true
+}
+
+locals {
+  application_secret_names = {
+    JWT_SECRET       = "/dailybriefing/jwt/secret"
+    EXCHANGE_API_KEY = "/dailybriefing/api/exchange"
+    WEATHER_API_KEY  = "/dailybriefing/api/weather"
+  }
+}
+
+data "aws_secretsmanager_secret" "application" {
+  for_each = local.application_secret_names
+  name     = each.value
 }
 
 module "security" {
@@ -40,7 +52,7 @@ locals {
     for k, v in var.services : k => {
       container_port    = v.container_port
       path_prefix       = v.path_prefix
-      health_check_path = "/actuator/health"
+      health_check_path = v.health_check_path
     }
   }
 }
@@ -68,7 +80,6 @@ module "rds" {
 
   db_name     = var.db_name
   db_username = var.db_username
-  db_password = var.db_password
   db_port     = var.db_port
 }
 
@@ -81,6 +92,7 @@ module "ecs" {
   vpc_id                = module.vpc.vpc_id
   ecs_subnet_ids        = module.vpc.ecs_subnet_ids
   ecs_security_group_id = module.security.ecs_sg_id
+  assign_public_ip      = true
 
   target_group_arns = module.alb.target_group_arns
 
@@ -94,17 +106,25 @@ module "ecs" {
 
   # DB 연결값: 모든 서비스에 공통 주입 (Spring 기준 env)
   common_env = {
-    SPRING_DATASOURCE_URL      = "jdbc:postgresql://${module.rds.db_address}:${var.db_port}/${var.db_name}"
-    SPRING_DATASOURCE_USERNAME = var.db_username
-    SPRING_DATASOURCE_PASSWORD = var.db_password
+    SPRING_DATASOURCE_URL    = "jdbc:postgresql://${module.rds.db_address}:${var.db_port}/${var.db_name}"
+    DATA_REFRESH_INTERVAL_MS = "600000"
 
     # ✅ 자동: CloudFront 도메인 사용
     APP_CORS_ALLOWED_ORIGINS = "https://${module.frontend.cloudfront_domain_name}"
   }
 
-  common_secrets = {
-    JWT_SECRET = "/dailybriefing/jwt/secret"
-  }
+  common_secret_values = merge(
+    { for env_name, secret in data.aws_secretsmanager_secret.application : env_name => secret.arn },
+    {
+      SPRING_DATASOURCE_USERNAME = "${module.rds.master_user_secret_arn}:username::"
+      SPRING_DATASOURCE_PASSWORD = "${module.rds.master_user_secret_arn}:password::"
+    }
+  )
+
+  secret_arns = concat(
+    [for secret in data.aws_secretsmanager_secret.application : secret.arn],
+    [module.rds.master_user_secret_arn]
+  )
 
   depends_on = [module.alb, module.rds]
 }
@@ -112,5 +132,6 @@ module "ecs" {
 module "frontend" {
   source = "../modules/frontend"
 
-  name = local.name_prefix
+  name         = local.name_prefix
+  alb_dns_name = module.alb.alb_dns_name
 }

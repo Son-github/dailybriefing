@@ -3,9 +3,17 @@ package com.sonny.authservice.exception;
 import com.sonny.authservice.dto.AuthResponse;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<AuthResponse> handleResponseStatus(ResponseStatusException ex) {
+        String message = ex.getReason() != null ? ex.getReason() : ex.getMessage();
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(AuthResponse.builder().message(message).build());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<AuthResponse> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

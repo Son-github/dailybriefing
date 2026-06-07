@@ -25,18 +25,6 @@ resource "aws_iam_role_policy_attachment" "ecs_exec_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# ✅ SecretsManager: secret metadata + version(값) 조회
-data "aws_secretsmanager_secret" "common" {
-  for_each = var.common_secrets
-  name     = each.value
-}
-
-data "aws_secretsmanager_secret_version" "common" {
-  for_each  = var.common_secrets
-  secret_id = data.aws_secretsmanager_secret.common[each.key].id
-}
-
-# ✅ 최소권한: 지정된 secret들만 GetSecretValue 허용
 data "aws_iam_policy_document" "ecs_exec_extra" {
   statement {
     actions = [
@@ -44,7 +32,7 @@ data "aws_iam_policy_document" "ecs_exec_extra" {
       "secretsmanager:DescribeSecret"
     ]
     resources = [
-      for k, s in data.aws_secretsmanager_secret.common : s.arn
+      for arn in var.secret_arns : arn
     ]
   }
 }
@@ -95,11 +83,11 @@ resource "aws_ecs_task_definition" "svc" {
         { name = ek, value = ev }
       ]
 
-      # ✅ SecretsManager "버전 ARN"으로 주입 (Plain string secret 전제)
+      # valueFrom은 plain secret ARN 또는 RDS managed secret의 JSON key ARN이다.
       secrets = [
-        for env_name, secret_name in var.common_secrets : {
+        for env_name, value_from in var.common_secret_values : {
           name      = env_name
-          valueFrom = data.aws_secretsmanager_secret_version.common[env_name].arn
+          valueFrom = value_from
         }
       ]
 
@@ -139,6 +127,12 @@ resource "aws_ecs_service" "svc" {
 
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
+  health_check_grace_period_seconds  = 90
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   depends_on = [
     aws_ecs_task_definition.svc

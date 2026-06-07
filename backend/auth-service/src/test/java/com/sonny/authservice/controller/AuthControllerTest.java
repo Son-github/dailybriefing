@@ -35,8 +35,8 @@ class AuthControllerTest {
 
     @Test
     void 회원가입_성공() throws Exception {
-        AuthRequest req = AuthRequest.builder().email("test@a.com").password("1111").build();
-        mockMvc.perform(post("/api/auth/signup")
+        AuthRequest req = AuthRequest.builder().email("test@a.com").password("password1").build();
+        mockMvc.perform(post("/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
@@ -45,9 +45,9 @@ class AuthControllerTest {
 
     @Test
     void 중복이메일_회원가입_실패() throws Exception {
-        userRepository.save(User.builder().email("test@a.com").password(passwordEncoder.encode("1111")).build());
-        AuthRequest req = AuthRequest.builder().email("test@a.com").password("2222").build();
-        mockMvc.perform(post("/api/auth/signup")
+        userRepository.save(User.builder().email("test@a.com").password(passwordEncoder.encode("password1")).build());
+        AuthRequest req = AuthRequest.builder().email("test@a.com").password("password2").build();
+        mockMvc.perform(post("/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isConflict())
@@ -56,9 +56,9 @@ class AuthControllerTest {
 
     @Test
     void 로그인_성공() throws Exception {
-        userRepository.save(User.builder().email("test@a.com").password(passwordEncoder.encode("1111")).build());
-        AuthRequest req = AuthRequest.builder().email("test@a.com").password("1111").build();
-        mockMvc.perform(post("/api/auth/login")
+        userRepository.save(User.builder().email("test@a.com").password(passwordEncoder.encode("password1")).build());
+        AuthRequest req = AuthRequest.builder().email("test@a.com").password("password1").build();
+        mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
@@ -67,9 +67,9 @@ class AuthControllerTest {
 
     @Test
     void 로그인_비밀번호틀림_실패() throws Exception {
-        userRepository.save(User.builder().email("test@a.com").password(passwordEncoder.encode("1111")).build());
-        AuthRequest req = AuthRequest.builder().email("test@a.com").password("9999").build();
-        mockMvc.perform(post("/api/auth/login")
+        userRepository.save(User.builder().email("test@a.com").password(passwordEncoder.encode("password1")).build());
+        AuthRequest req = AuthRequest.builder().email("test@a.com").password("password9").build();
+        mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isUnauthorized())

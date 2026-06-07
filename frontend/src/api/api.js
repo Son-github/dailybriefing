@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 // ✅ 단일 API baseURL (로컬: 8080 gateway, 운영: CloudFront 도메인)
-const API_BASE = process.env.REACT_APP_API_BASE_URL;
+// 이전에는 운영 API 주소를 별도로 주입해야 했다. 비어 있으면 CloudFront 동일 도메인을 사용한다.
+const API_BASE = process.env.REACT_APP_API_BASE_URL || '';
 
 // axios 인스턴스 1개만 사용
 const api = axios.create({

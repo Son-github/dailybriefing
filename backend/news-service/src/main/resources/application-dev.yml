@@ -51,16 +51,15 @@ management:
     readinessstate:
       enabled: true
 
-# ====== 뉴스/트렌드/NLP 설정 ======
 app:
+  data-refresh-ms: ${DATA_REFRESH_INTERVAL_MS:600000}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}
   news:
     rss-url: ${NEWS_RSS_URL:https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko}
     top-n: ${NEWS_TOP_N:10}
     trend:
       max-keywords: ${NEWS_TREND_MAX_KEYWORDS:5}
-
-  nlp:
-    base-url: ${NLP_BASE_URL:http://news-nlp-service:8090}
 
   http:
     connect-timeout-ms: ${HTTP_CONNECT_TIMEOUT_MS:2000}

@@ -45,6 +45,7 @@ public class SecurityConfig {
                                 "/auth/signup",
                                 "/auth/login",
                                 "/auth/refresh",
+                                "/auth/actuator/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
@@ -64,13 +65,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // ✅ 로컬에서는 패턴 허용이 제일 안전 (완전일치 때문에 403 나는거 방지)
-        config.setAllowedOriginPatterns(List.of(
-                "http://localhost:3000",
-                "http://127.0.0.1:3000",
-                "http://localhost:*",
-                "http://127.0.0.1:*"
-        ));
+        // 이전에는 localhost만 하드코딩했다. 이제 Terraform이 CloudFront origin을 주입할 수 있다.
+        config.setAllowedOrigins(List.of(allowedOrigins.split(",")));
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

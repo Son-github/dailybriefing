@@ -25,4 +25,5 @@ public class MarketSummaryResponse {
 
     private String fetchedDate;
     private String updatedAt;
+    private boolean stale;
 }

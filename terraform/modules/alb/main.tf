@@ -30,11 +30,8 @@ resource "aws_lb_target_group" "tg" {
   }
 }
 
-# ✅ HTTP(80) 리스너: 기본은 첫 번째 서비스로 forward
-# (실전에서는 보통 80→443 리다이렉트지만, 1차 성공 목적으론 HTTP가 디버깅이 빠름)
 locals {
-  service_keys  = keys(var.services)
-  default_svc   = length(local.service_keys) > 0 ? local.service_keys[0] : null
+  service_keys = keys(var.services)
 }
 
 resource "aws_lb_listener" "http" {
@@ -43,8 +40,12 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.tg[local.default_svc].arn
+    type = "fixed-response"
+    fixed_response {
+      content_type = "application/json"
+      message_body = "{\"message\":\"Not found\"}"
+      status_code  = "404"
+    }
   }
 }
 
@@ -77,7 +78,11 @@ resource "aws_lb_listener" "https" {
   certificate_arn   = var.acm_certificate_arn
 
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.tg[local.default_svc].arn
+    type = "fixed-response"
+    fixed_response {
+      content_type = "application/json"
+      message_body = "{\"message\":\"Not found\"}"
+      status_code  = "404"
+    }
   }
 }

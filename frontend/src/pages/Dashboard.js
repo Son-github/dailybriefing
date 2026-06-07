@@ -12,6 +12,7 @@ import { logout as logoutApi, clearLocalSession } from '../api/auth';
 import api from '../api/api';
 
 const MotionStack = motion.create(Stack);
+const REFRESH_INTERVAL_MS = Number(process.env.REACT_APP_DATA_REFRESH_INTERVAL_MS || 600000);
 
 function Dashboard() {
     const navigate = useNavigate();
@@ -61,6 +62,12 @@ function Dashboard() {
             forceLocalLogout();
         }
         // eslint-disable-next-line
+    }, []);
+
+    useEffect(() => {
+        // 이전에는 사용자가 버튼을 눌러야만 카드가 갱신됐다. 이제 모든 카드를 10분마다 다시 마운트한다.
+        const timer = window.setInterval(handleRefresh, REFRESH_INTERVAL_MS);
+        return () => window.clearInterval(timer);
     }, []);
 
     return (
@@ -244,7 +251,7 @@ function Dashboard() {
                                         fontWeight: 600,
                                     }}
                                 >
-                                    카드 데이터가 최신 상태로 다시 불러와져요
+                                    카드 데이터는 10분마다 자동으로 갱신돼요
                                 </Typography>
                             </Box>
                         </Box>
