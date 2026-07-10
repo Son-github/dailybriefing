@@ -4,6 +4,11 @@ server:
   forward-headers-strategy: native
 
 spring:
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:${REDIS_HOST:localhost}}
+      port: ${SPRING_DATA_REDIS_PORT:${REDIS_PORT:6379}}
+
   datasource:
     # ✅ 운영: ECS가 Secrets/Env로 주입 (필수)
     url: ${SPRING_DATASOURCE_URL}
