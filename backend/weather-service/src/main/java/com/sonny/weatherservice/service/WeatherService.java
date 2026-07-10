@@ -1,5 +1,6 @@
 package com.sonny.weatherservice.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sonny.weatherservice.domain.WeatherFetchLog;
@@ -7,24 +8,31 @@ import com.sonny.weatherservice.repository.WeatherFetchLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.net.URI;
-import java.time.LocalDateTime;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class WeatherService {
 
+    private static final String CACHE_KEY_PREFIX = "dailybriefing:weather:summary:";
+    private static final String LOCK_KEY_PREFIX = "dailybriefing:lock:weather:summary:";
+    private static final Duration LOCK_TTL = Duration.ofSeconds(30);
+    private static final TypeReference<Map<String, String>> WEATHER_CACHE_TYPE = new TypeReference<>() {};
+
     private final WebClient customWebClient;
     private final WeatherFetchLogRepository fetchLogRepository;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Value("${external.weather.url}")
     private String apiUrl;
@@ -34,8 +42,6 @@ public class WeatherService {
 
     @Value("${app.data-refresh-ms:600000}")
     private long refreshMs;
-
-    private final Map<String, CachedWeather> cache = new ConcurrentHashMap<>();
 
     // ✅ region -> nx, ny (대표 격자)
     // 필요하면 구/군 단위로 더 쪼갤 수 있음
@@ -64,9 +70,13 @@ public class WeatherService {
     public Map<String, String> getCurrentWeatherSummary(String regionRaw) {
         String region = normalizeRegion(regionRaw);
         Grid grid = REGION_GRID.get(region);
-        CachedWeather cached = cache.get(region);
-        if (cached != null && Duration.between(cached.cachedAt(), LocalDateTime.now()).toMillis() < refreshMs) {
-            return cached.value();
+        Map<String, String> cached = readCached(region);
+        if (cached != null) return cached;
+
+        String lockToken = acquireLock(region);
+        if (lockToken == null) {
+            Map<String, String> waited = waitForCached(region);
+            if (waited != null) return waited;
         }
 
         try {
@@ -107,13 +117,16 @@ public class WeatherService {
                     "baseDate", baseDate,
                     "baseTime", baseTime
             );
-            cache.put(region, new CachedWeather(result, LocalDateTime.now()));
+            writeCached(region, result);
             return result;
 
         } catch (Exception e) {
             log.error("날씨 데이터 처리 실패: {}", e.getMessage(), e);
-            if (cached != null) return cached.value();
+            cached = readCached(region);
+            if (cached != null) return cached;
             throw new RuntimeException("날씨 데이터 처리 실패", e);
+        } finally {
+            releaseLock(region, lockToken);
         }
     }
 
@@ -189,6 +202,69 @@ public class WeatherService {
         );
     }
 
-    private record CachedWeather(Map<String, String> value, LocalDateTime cachedAt) {}
     private record ForecastBase(String date, String time) {}
+
+    private Map<String, String> readCached(String region) {
+        try {
+            String value = redisTemplate.opsForValue().get(cacheKey(region));
+            if (value == null || value.isBlank()) return null;
+            return objectMapper.readValue(value, WEATHER_CACHE_TYPE);
+        } catch (DataAccessException | JsonProcessingException e) {
+            log.warn("Weather Redis cache read failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private void writeCached(String region, Map<String, String> response) {
+        try {
+            redisTemplate.opsForValue().set(cacheKey(region), objectMapper.writeValueAsString(response), Duration.ofMillis(refreshMs));
+        } catch (DataAccessException | JsonProcessingException e) {
+            log.warn("Weather Redis cache write failed: {}", e.getMessage());
+        }
+    }
+
+    private String acquireLock(String region) {
+        try {
+            String token = UUID.randomUUID().toString();
+            Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey(region), token, LOCK_TTL);
+            return Boolean.TRUE.equals(locked) ? token : null;
+        } catch (DataAccessException e) {
+            log.warn("Weather Redis lock failed: {}", e.getMessage());
+            return UUID.randomUUID().toString();
+        }
+    }
+
+    private void releaseLock(String region, String lockToken) {
+        if (lockToken == null) return;
+        try {
+            if (lockToken.equals(redisTemplate.opsForValue().get(lockKey(region)))) {
+                redisTemplate.delete(lockKey(region));
+            }
+        } catch (DataAccessException e) {
+            log.warn("Weather Redis lock release failed: {}", e.getMessage());
+        }
+    }
+
+    private Map<String, String> waitForCached(String region) {
+        for (int i = 0; i < 5; i++) {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+
+            Map<String, String> cached = readCached(region);
+            if (cached != null) return cached;
+        }
+        return null;
+    }
+
+    private String cacheKey(String region) {
+        return CACHE_KEY_PREFIX + region;
+    }
+
+    private String lockKey(String region) {
+        return LOCK_KEY_PREFIX + region;
+    }
 }

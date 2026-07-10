@@ -4,6 +4,11 @@ server:
   forward-headers-strategy: native
 
 spring:
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:${REDIS_HOST:localhost}}
+      port: ${SPRING_DATA_REDIS_PORT:${REDIS_PORT:6379}}
+
   datasource:
     # ✅ Terraform이 SPRING_DATASOURCE_URL 로 주입
     # 예) jdbc:postgresql://${module.rds.endpoint}:5432/${module.rds.db_name}?sslmode=require
