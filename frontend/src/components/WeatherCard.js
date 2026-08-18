@@ -13,26 +13,15 @@ import api from '../api/api';
 const MotionCard = motion.create(Card);
 const MotionBox = motion.create(Box);
 
-const REGION_LABEL = {
-    SEOUL: '서울',
-    BUSAN: '부산',
-    INCHEON: '인천',
-    DAEGU: '대구',
-    DAEJEON: '대전',
-    GWANGJU: '광주',
-    JEJU: '제주',
-};
-
 function WeatherCard() {
     const [loading, setLoading] = useState(true);
-    const [region, setRegion] = useState('SEOUL');
     const [temperature, setTemperature] = useState('-');
     const [sky, setSky] = useState('-');
     const [baseDate, setBaseDate] = useState('');
     const [baseTime, setBaseTime] = useState('');
     const [error, setError] = useState('');
 
-    const locationText = useMemo(() => REGION_LABEL[region] || '서울', [region]);
+    const locationText = '서울';
 
     const weatherMeta = useMemo(() => {
         if (!sky || sky === '-') {
@@ -146,15 +135,10 @@ function WeatherCard() {
                 setLoading(true);
                 setError('');
 
-                const stored = localStorage.getItem('weatherRegion') || 'SEOUL';
-                const normalized = (stored || 'SEOUL').toUpperCase();
-                if (mounted) setRegion(normalized);
-
-                const res = await api.get(`/weather/summary?region=${encodeURIComponent(normalized)}`);
+                const res = await api.get('/weather/summary');
 
                 if (!mounted) return;
 
-                setRegion(res.data?.region || normalized);
                 setTemperature(res.data?.temperature ?? '-');
                 setSky(res.data?.sky ?? '-');
                 setBaseDate(res.data?.baseDate ?? '');

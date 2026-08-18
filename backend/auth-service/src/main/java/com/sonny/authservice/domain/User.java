@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @Entity
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "users")
-@ToString(exclude = {"password", "refreshToken"})
+@ToString(exclude = "password")
 public class User {
 
     @Id
@@ -28,14 +28,6 @@ public class User {
 
     @Column(nullable = false)
     private String password;
-
-    @Column(length = 512)
-    private String refreshToken;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    @Builder.Default
-    private WeatherRegion weatherRegion = WeatherRegion.SEOUL;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)

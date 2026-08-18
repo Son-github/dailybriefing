@@ -15,22 +15,11 @@ import { motion } from 'framer-motion';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import PersonAddAltRoundedIcon from '@mui/icons-material/PersonAddAltRounded';
-import PlaceRoundedIcon from '@mui/icons-material/PlaceRounded';
 import AuthLayout from '../components/AuthLayout';
 import { signup } from '../api/auth';
 
-const REGIONS = [
-    { value: 'SEOUL', label: '서울' },
-    { value: 'BUSAN', label: '부산' },
-    { value: 'INCHEON', label: '인천' },
-    { value: 'DAEGU', label: '대구' },
-    { value: 'DAEJEON', label: '대전' },
-    { value: 'GWANGJU', label: '광주' },
-    { value: 'JEJU', label: '제주도' },
-];
-
 function SignUpPage() {
-    const [form, setForm] = useState({ email: '', password: '', weatherRegion: 'SEOUL' });
+    const [form, setForm] = useState({ email: '', password: '' });
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
@@ -62,7 +51,7 @@ function SignUpPage() {
         setSuccess('');
 
         try {
-            await signup(form.email, form.password, form.weatherRegion);
+            await signup(form.email, form.password);
 
             setSuccess('회원가입 성공! 잠시 후 로그인 페이지로 이동합니다.');
 
@@ -189,47 +178,6 @@ function SignUpPage() {
                                 ),
                             }}
                         />
-
-                        <TextField
-                            margin="normal"
-                            required
-                            fullWidth
-                            label="선호 지역"
-                            name="weatherRegion"
-                            value={form.weatherRegion}
-                            onChange={handleChange}
-                            disabled={loading}
-                            select
-                            SelectProps={{ native: true }}
-                            InputLabelProps={{
-                                style: { color: '#64748b', fontWeight: 600 },
-                            }}
-                            sx={{
-                                ...textFieldSx(themeColor),
-                                '& .MuiOutlinedInput-root': {
-                                    ...textFieldSx(themeColor)['& .MuiOutlinedInput-root'],
-                                    pr: 1,
-                                },
-                                '& select': {
-                                    color: '#0f172a',
-                                    fontWeight: 600,
-                                    background: 'transparent',
-                                },
-                            }}
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <PlaceRoundedIcon sx={{ color: '#64748b', fontSize: 20 }} />
-                                    </InputAdornment>
-                                ),
-                            }}
-                        >
-                            {REGIONS.map((r) => (
-                                <option key={r.value} value={r.value}>
-                                    {r.label}
-                                </option>
-                            ))}
-                        </TextField>
 
                         {success && (
                             <Alert

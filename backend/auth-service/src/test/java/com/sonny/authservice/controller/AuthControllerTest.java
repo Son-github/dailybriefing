@@ -75,4 +75,25 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("비밀번호가 틀립니다."));
     }
+
+    @Test
+    void 로그인후_로그아웃_성공() throws Exception {
+        userRepository.save(User.builder().email("logout@a.com").password(passwordEncoder.encode("password1")).build());
+        AuthRequest req = AuthRequest.builder().email("logout@a.com").password("password1").build();
+
+        String loginBody = mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String token = objectMapper.readTree(loginBody).get("accessToken").asText();
+
+        mockMvc.perform(post("/auth/logout")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("logout@a.com 로그아웃 완료"));
+    }
 }

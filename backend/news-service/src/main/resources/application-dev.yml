@@ -52,7 +52,6 @@ management:
       enabled: true
 
 app:
-  data-refresh-ms: ${DATA_REFRESH_INTERVAL_MS:600000}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}
   news:

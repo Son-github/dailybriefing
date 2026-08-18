@@ -17,10 +17,8 @@ public class WeatherController {
     private final WeatherService weatherService;
 
     @GetMapping("/summary")
-    @Operation(summary = "지역별 날씨 요약", description = "region(SEOUL/BUSAN/...)에 해당하는 날씨 요약을 반환합니다.")
-    public Map<String, String> getWeatherSummary(
-            @RequestParam(defaultValue = "SEOUL") String region
-    ) {
-        return weatherService.getCurrentWeatherSummary(region);
+    @Operation(summary = "서울 날씨 요약")
+    public Map<String, String> getWeatherSummary() {
+        return weatherService.getCurrentWeatherSummary();
     }
 }

@@ -1,6 +1,6 @@
 # DailyBriefing
 
-환율, 날씨, 시장 지수, 주요 뉴스를 한 화면에 보여주는 개인화 브리핑 서비스입니다.
+환율, 서울 날씨, 시장 지수, 주요 뉴스를 한 화면에 보여주는 브리핑 서비스입니다.
 
 ## 로컬 Docker 실행
 
@@ -30,7 +30,7 @@ docker compose ps
 docker compose logs -f
 ```
 
-종료할 때 데이터베이스와 Redis 데이터는 보존됩니다.
+종료할 때 데이터베이스는 보존됩니다.
 
 ```bash
 docker compose down
@@ -50,10 +50,9 @@ docker compose down -v
 | API Gateway | http://localhost:8080 | 백엔드 경로 라우팅 |
 | Auth service | http://localhost:8081 | 회원가입, 로그인, 사용자 설정 |
 | Exchange service | http://localhost:8082 | 환율과 시장 지수 |
-| Weather service | http://localhost:8083 | 지역별 날씨 |
+| Weather service | http://localhost:8083 | 서울 날씨 |
 | News service | http://localhost:8084 | 주요 뉴스와 트렌드 키워드 |
 | PostgreSQL | localhost:5432 | 사용자 및 수집 이력 저장 |
-| Redis | localhost:6379 | 외부 API 응답 캐시와 갱신 락 |
 
 프런트엔드는 브라우저에서 같은 출처의 `/auth`, `/exchange`, `/weather`, `/news` 경로를 호출합니다. 프런트 Nginx가 이를 API Gateway로 전달하고, API Gateway가 각 Spring Boot 서비스로 라우팅합니다.
 
@@ -79,7 +78,7 @@ Browser
           -> exchange-service
           -> weather-service
           -> news-service
-              -> PostgreSQL / Redis / external APIs
+              -> PostgreSQL / external APIs
 ```
 
 AWS 배포 구성은 로컬 Docker와 분리되어 있습니다. 이후 배포할 때는 [DEPLOYMENT.md](./DEPLOYMENT.md)와 `terraform/`을 사용하면 됩니다.

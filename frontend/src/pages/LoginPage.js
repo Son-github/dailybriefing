@@ -17,7 +17,6 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import AuthLayout from '../components/AuthLayout';
 import { login } from '../api/auth';
-import api from '../api/api';
 
 function LoginPage() {
     const [form, setForm] = useState({ email: '', password: '' });
@@ -56,15 +55,6 @@ function LoginPage() {
 
             // 짧은 설명: 실제 저장값은 이메일이므로 이름도 userEmail로 정리
             localStorage.setItem('userEmail', form.email.trim().toLowerCase());
-
-            try {
-                const meRes = await api.get('/auth/me');
-                const region = meRes?.data?.weatherRegion || 'SEOUL';
-                localStorage.setItem('weatherRegion', region);
-            } catch (e) {
-                console.error('/auth/me 조회 실패', e); // 짧은 설명: fallback 원인 추적용
-                localStorage.setItem('weatherRegion', 'SEOUL');
-            }
 
             navigate('/dashboard');
         } catch (err) {

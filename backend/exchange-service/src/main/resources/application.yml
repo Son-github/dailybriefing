@@ -4,11 +4,6 @@ server:
   forward-headers-strategy: native
 
 spring:
-  data:
-    redis:
-      host: ${SPRING_DATA_REDIS_HOST:${REDIS_HOST:localhost}}
-      port: ${SPRING_DATA_REDIS_PORT:${REDIS_PORT:6379}}
-
   datasource:
     # 우선순위: SPRING_DATASOURCE_* → POSTGRES_* → DB_* → 기본값
     url: ${SPRING_DATASOURCE_URL}
@@ -66,7 +61,6 @@ external:
     symbol: ${US_MARKET_SYMBOL:IXIC}
 
 app:
-  data-refresh-ms: ${DATA_REFRESH_INTERVAL_MS:600000}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}
 

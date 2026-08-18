@@ -3,7 +3,6 @@ import { Box, Typography, Button, Chip, IconButton, Tooltip, useMediaQuery } fro
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import PersonAddAltRoundedIcon from '@mui/icons-material/PersonAddAltRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
@@ -18,7 +17,6 @@ export default function Header({ userEmail, onLogout, onRefresh }) {
     const isSmallScreen = useMediaQuery('(max-width:600px)');
     const isMobileUI = MOBILE_FIXED || isSmallScreen;
 
-    const isMyPage = location.pathname.startsWith('/mypage');
     const isAuthPage = location.pathname.startsWith('/login') || location.pathname.startsWith('/signup');
 
     const hasToken = !!localStorage.getItem('token'); // 짧은 설명: mount 시점 기준 토큰만 간단 확인
@@ -188,20 +186,6 @@ export default function Header({ userEmail, onLogout, onRefresh }) {
                                             <RefreshRoundedIcon sx={{ fontSize: isMobileUI ? 18 : 20 }} />
                                         </IconButton>
                                     </Tooltip>
-                                )}
-
-                                {!isAuthPage && (
-                                    <Button
-                                        component={RouterLink}
-                                        to="/mypage"
-                                        size="small"
-                                        variant="outlined"
-                                        startIcon={!isMobileUI ? <PersonRoundedIcon /> : null}
-                                        disabled={isMyPage}
-                                        sx={pillOutlineSx(isMyPage, isMobileUI)}
-                                    >
-                                        {isMobileUI ? 'My' : '마이페이지'}
-                                    </Button>
                                 )}
 
                                 <Button
