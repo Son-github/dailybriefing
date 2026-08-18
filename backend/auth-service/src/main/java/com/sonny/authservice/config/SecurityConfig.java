@@ -44,13 +44,12 @@ public class SecurityConfig {
                                 "/auth/health",
                                 "/auth/signup",
                                 "/auth/login",
-                                "/auth/refresh",
                                 "/auth/actuator/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
 
-                        .requestMatchers("/auth/me/**", "/auth/logout").authenticated()
+                        .requestMatchers("/auth/logout").authenticated()
                         .anyRequest().authenticated()
                 )
 

@@ -56,7 +56,7 @@ function Dashboard() {
 
         try {
             const decoded = jwtDecode(token);
-            setUserEmail(decoded?.email || cachedEmail);
+            setUserEmail(decoded?.sub || cachedEmail);
         } catch (e) {
             console.error('Invalid token:', e);
             forceLocalLogout();

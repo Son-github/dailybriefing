@@ -1,6 +1,4 @@
 spring:
-  flyway:
-    enabled: false
   datasource:
     url: jdbc:h2:mem:auth;MODE=PostgreSQL
     username: sa

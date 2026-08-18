@@ -51,7 +51,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
             // ✅ Bearer는 "ACCESS" 토큰만 받는 게 안전함
-            if (tokenProvider.validateToken(token) && !tokenProvider.isRefreshToken(token)) {
+            if (tokenProvider.validateToken(token)) {
                 String email = tokenProvider.getEmailFromToken(token);
 
                 List<SimpleGrantedAuthority> authorities =

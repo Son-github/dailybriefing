@@ -35,7 +35,7 @@ Gateway hourly charge.
 
 CloudFront serves the React build from S3 and forwards `/auth*`, `/exchange*`,
 `/weather*`, and `/news*` to the ALB. API responses are not cached by
-CloudFront. The applications cache provider responses for 10 minutes.
+CloudFront. The applications request provider data directly.
 
 ## Secrets to create
 
@@ -91,7 +91,7 @@ exists in AWS and should be deleted before applying to avoid duplicate VPCs.
 - Missing KIS or Twelve Data credentials now produce empty index fields rather
   than preventing the service from starting.
 - News sentiment analysis and its deployment workflow were removed.
-- Weather, news, and market data are reused for 10 minutes.
+- Weather, news, and market data are requested directly without a shared cache.
 - The frontend refreshes all dashboard cards every 10 minutes.
 - CloudFront now routes API paths to ALB instead of returning the React page
   for API errors.

@@ -3,11 +3,6 @@ spring:
     activate:
       on-profile: dev
 
-  flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:true}
-    baseline-on-migrate: true
-    baseline-version: 1
-
   datasource:
     # 로컬 단독 실행이면 localhost / compose면 postgres(서비스명)
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/dashboard}
@@ -38,10 +33,7 @@ logging:
 jwt:
   secret: ${JWT_SECRET:dev-secret-change-me-please-dev-secret-change-me}
   access-validity-ms: ${JWT_ACCESS_VALIDITY_MS:3600000}
-  refresh-validity-ms: ${JWT_REFRESH_VALIDITY_MS:604800000}
 
 app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}
-  cookie:
-    secure: false
