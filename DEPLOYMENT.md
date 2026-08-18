@@ -2,25 +2,22 @@
 
 ## Environment separation
 
-- Local Docker uses `docker-compose.yml`, `docker-compose.local.yml`, and
-  `backend/.env.local`.
+- Local Docker uses the standalone `docker-compose.yml` and root `.env`.
 - AWS production uses only `terraform/`, ECS task definitions, and Secrets
-  Manager. Docker Compose and `.env.local` are not used by AWS.
+  Manager. Docker Compose and the local `.env` are not used by AWS.
 
-To run locally, copy the example file, fill in the API keys, and start both
-Compose files:
+To run locally, copy the example file, fill in the API keys, and start the
+Compose stack:
 
 ```bash
-cp backend/.env.local.example backend/.env.local
-docker compose --env-file backend/.env.local \
-  -f docker-compose.yml -f docker-compose.local.yml up --build
+cp .env.example .env
+docker compose up --build
 ```
 
 Open `http://localhost:3000`. To stop without deleting the local database:
 
 ```bash
-docker compose --env-file backend/.env.local \
-  -f docker-compose.yml -f docker-compose.local.yml down
+docker compose down
 ```
 
 Add `-v` to the `down` command only when the local PostgreSQL data should also

@@ -15,7 +15,7 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      initialization-fail-timeout: ${SPRING_DATASOURCE_HIKERNATION_FAIL_TIMEOUT:0}
+      initialization-fail-timeout: ${SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT:0}
 
   jpa:
     hibernate:

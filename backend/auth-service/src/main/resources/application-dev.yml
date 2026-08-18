@@ -3,6 +3,11 @@ spring:
     activate:
       on-profile: dev
 
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
+    baseline-version: 1
+
   datasource:
     # 로컬 단독 실행이면 localhost / compose면 postgres(서비스명)
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/dashboard}
