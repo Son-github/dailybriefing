@@ -3,13 +3,17 @@ server:
   forward-headers-strategy: native
 
 spring:
+  flyway:
+    # AWS 배포에는 명시적으로 켜기 전까지 영향을 주지 않는다.
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
+
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      initialization-fail-timeout: ${SPRING_DATASOURCE_HIKERNATION_FAIL_TIMEOUT:0}
+      initialization-fail-timeout: ${SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT:0}
 
   jpa:
     hibernate:

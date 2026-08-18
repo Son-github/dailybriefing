@@ -15,7 +15,7 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      initialization-fail-timeout: ${SPRING_DATASOURCE_HIKERNATION_FAIL_TIMEOUT:0}
+      initialization-fail-timeout: ${SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT:0}
 
   jpa:
     hibernate:
@@ -57,7 +57,8 @@ external:
     # 기본값은 공공데이터포털 초단기예보, 필요시 ENV로 덮어쓰기
     url: ${WEATHER_API_URL:http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst}
     # 🔐 Secrets Manager → ECS secrets 로 주입됨 (Plaintext 값만 저장)
-    service-key: ${WEATHER_API_KEY}
+    # 키가 없어도 컨테이너는 기동되고, 날씨 요청 시에만 설정 오류가 드러난다.
+    service-key: ${WEATHER_API_KEY:}
 
 app:
   data-refresh-ms: ${DATA_REFRESH_INTERVAL_MS:600000}
