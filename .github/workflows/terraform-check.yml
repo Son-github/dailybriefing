@@ -1,0 +1,28 @@
+name: terraform-check
+on:
+  push:
+    paths: ['infra/**', 'scripts/check-infra.py', 'lambda/aiops/**', 'scripts/build_aiops.sh', '.github/workflows/terraform-check.yml']
+  pull_request:
+    paths: ['infra/**', 'scripts/check-infra.py', 'lambda/aiops/**', 'scripts/build_aiops.sh', '.github/workflows/terraform-check.yml']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    # AWS OIDC/Access Key/Remote State 접근 권한을 부여하지 않습니다.
+    env:
+      AWS_EC2_METADATA_DISABLED: 'true'
+      AWS_SHARED_CREDENTIALS_FILE: /dev/null
+      AWS_CONFIG_FILE: /dev/null
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.12.2'
+      - run: terraform fmt -check -recursive infra
+      - run: |
+          for root in infra infra/bootstrap; do
+            terraform -chdir="$root" init -backend=false -input=false -lockfile=readonly
+            terraform -chdir="$root" validate
+          done
+      - run: python3 scripts/check-infra.py && python3 scripts/scan-secrets.py

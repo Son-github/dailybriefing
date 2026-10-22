@@ -1,0 +1,10 @@
+build
+.gradle
+.env
+.env.*
+!.env.example
+.git
+*.log
+*.key
+*.p12
+*.pfx

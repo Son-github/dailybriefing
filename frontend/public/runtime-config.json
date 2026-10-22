@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "mode": "LOCAL",
+  "liveEnabled": true,
+  "apiBase": "/api/v1",
+  "kakaoMapKey": ""
+}

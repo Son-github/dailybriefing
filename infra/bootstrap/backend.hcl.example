@@ -1,0 +1,4 @@
+# [사용자 설정 필요] bootstrap 출력의 실제 bucket. 인증정보를 여기에 쓰지 마세요.
+bucket = "REPLACE_WITH_STATE_BUCKET"
+key    = "bootstrap/terraform.tfstate"
+region = "ap-northeast-2"

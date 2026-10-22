@@ -1,0 +1,60 @@
+# 예제일 뿐 실제 계정이 아닙니다. terraform.tfvars로 복사한 뒤 사용자가 직접 입력합니다.
+aws_account_id = "REPLACE_WITH_12_DIGIT_ACCOUNT_ID"
+region = "ap-northeast-2"
+project = "dailybriefing"
+environment = "demo"
+availability_zones = ["ap-northeast-2a", "ap-northeast-2c"]
+frontend_bucket_name = "REPLACE_WITH_GLOBALLY_UNIQUE_BUCKET"
+github_repository_subject = "repo:Son-github/dailybriefing"
+# 이미 계정 GitHub OIDC가 있다면 false와 기존 ARN. 공유 OIDC를 새로 만들거나 삭제하지 마세요.
+create_github_oidc_provider = false
+existing_github_oidc_provider_arn = "REPLACE_WITH_EXISTING_OIDC_ARN"
+create_service_linked_roles = false
+# 1차는 정적 DEMO/ECR만. 수동 image push 후 아래를 true로 바꾸어 2차 적용합니다.
+enable_backend = false
+image_digest = ""
+# DEMO만 사용하는 경우 빈 문자열 유지 가능. LIVE에는 실제 DNS/서울 ACM 필요.
+api_hostname = ""
+api_hosted_zone_id = ""
+alb_certificate_arn = ""
+# 선택 사항: frontend 사용자 도메인은 us-east-1 ACM 필요. 기본 CF HTTPS 도메인은 인증서 입력 불필요.
+frontend_hostname = ""
+frontend_certificate_arn = ""
+# 비밀값 자체 금지. 활성화 전 7개 이름의 동일 계정/서울 SecureString 또는 Secret ARN 모두 지정.
+application_secrets = {}
+# application_secrets = { JWT_SECRET = "arn:aws:ssm:ap-northeast-2:실제계정:parameter/dailybriefing/JWT_SECRET", ... }
+secret_kms_key_arns = []
+database_disposal = "protect"
+ephemeral_database_ack = false
+final_snapshot_identifier = ""
+allow_storage_cleanup = false
+# 기본 1task/SingleAZ/NAT1개는 완전한 고가용성이 아닙니다.
+task_cpu = 512
+task_memory = 2048
+task_count = 1
+use_both_app_azs = false
+db_instance_class = "db.t4g.micro"
+log_retention_days = 14
+
+# AIOps도 기본 꺼짐. AWS/GPT/SNS 비용이 생길 수 있으므로 사용자 수동 활성화 전까지 false 유지.
+enable_aiops = false
+aiops_email = ""
+aiops_openai_key_arn = ""
+aiops_secret_kms_key_arn = ""
+aiops_package_path = "../lambda/aiops/build/aiops.zip"
+aiops_settings = {
+  processing_enabled = true
+  ai_enabled = false
+  model = ""
+  daily_limit = 5
+  notification_limit = 20
+  max_log_chars = 3000
+  max_output_tokens = 700
+  api_timeout = 10
+  dedup_seconds = 1800
+  max_events = 20
+  ai_severities = ["HIGH", "CRITICAL"]
+  log_retention_days = 7
+}
+# AI 실제 사용 시에만 같은 계정/서울의 SSM SecureString 또는 Secret ARN과 지원 모델을 입력.
+# 배포 전 bash scripts/build_aiops.sh 실행. 원문 OpenAI key/실제 이메일을 이 예제에 커밋하지 마세요.

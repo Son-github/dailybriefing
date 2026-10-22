@@ -1,0 +1,20 @@
+app:
+  cookie-secure: true
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+logging:
+  level:
+    root: INFO
+    org.springframework.web: WARN
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME:dailybriefing}?sslmode=${DB_SSL_MODE:verify-full}&sslrootcert=${DB_SSL_ROOT_CERT:/app/certs/rds-global-bundle.pem}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

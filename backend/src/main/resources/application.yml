@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: daily-briefing
+  profiles:
+    default: local
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:dailybriefing}
+    username: ${DB_USERNAME:dailybriefing}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      group:
+        readiness:
+          include: readinessState,db
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  frontend-urls: ${FRONTEND_URLS:${FRONTEND_URL:http://localhost:5173}}
+  jwt-secret: ${JWT_SECRET}
+  cookie-secure: ${COOKIE_SECURE:false}
+  data-mode: ${DATA_MODE:DEMO}
+  weather-url: ${KMA_API_URL:https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}
+  weather-key: ${KMA_API_KEY:}
+  exchange-url: ${KOREA_EXIM_API_URL:https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON}
+  exchange-key: ${KOREA_EXIM_API_KEY:}
+  news-url: ${NAVER_API_URL:https://naverapihub.apigw.ntruss.com}
+  naver-id: ${NAVER_API_CLIENT_ID:}
+  naver-secret: ${NAVER_API_CLIENT_SECRET:}
+  kakao-place-url: ${KAKAO_PLACE_API_URL:https://dapi.kakao.com}
+  kakao-route-url: ${KAKAO_ROUTE_API_URL:https://dapi.kakao.com/v2/routing/publictraffic}
+  kakao-key: ${KAKAO_REST_API_KEY:}
+  holiday-url: ${KASI_API_URL:https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService}
+  holiday-key: ${KASI_API_KEY:}
+  calendar-cleanup-enabled: ${CALENDAR_CLEANUP_ENABLED:true}
+  calendar-cleanup-cron: ${CALENDAR_CLEANUP_CRON:0 0 3 * * *}
+  connect-timeout-ms: ${API_CONNECT_TIMEOUT_MS:2000}
+  read-timeout-ms: ${API_READ_TIMEOUT_MS:4000}
+logging:
+  pattern:
+    console: '%d{yyyy-MM-dd''T''HH:mm:ss.SSSXXX} %-5level requestId=%X{requestId:-none} %logger{36} - %msg%n'

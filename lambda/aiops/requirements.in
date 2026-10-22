@@ -1,0 +1,4 @@
+# 공식 SDK/검증기. requirements.txt는 전체 전이 의존성과 해시를 잠근 배포 입력입니다.
+openai==3.36.1
+boto3==1.43.117
+jsonschema==4.26.0

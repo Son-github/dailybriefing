@@ -1,0 +1,9 @@
+# 새 DB 통합 테스트 전용. 반드시 별도 -p dailybriefing-v2-fresh project로 실행하세요.
+# 일반 개발 서비스는 compose.yaml만 사용합니다.
+services:
+  backend:
+    environment:
+      FRONTEND_URL: http://localhost:5174
+  frontend:
+    ports: !override
+      - "127.0.0.1:5174:8080"

@@ -1,0 +1,74 @@
+name: backend-deploy
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: aws-application-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    # 수동 앱 배포 전용입니다. 인프라를 자동 생성/삭제하거나 Terraform을 호출하지 않습니다.
+    if: github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ENABLED == 'true'
+    environment: backend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ap-northeast-2
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      ECR_URL: ${{ vars.ECR_URL }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      ECS_SERVICE: ${{ vars.ECS_SERVICE }}
+      TASK_FAMILY: ${{ vars.TASK_FAMILY }}
+      FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+      FRONTEND_BUCKET: ${{ vars.FRONTEND_BUCKET }}
+      CF_DISTRIBUTION_ID: ${{ vars.CF_DISTRIBUTION_ID }}
+      PUBLIC_KAKAO_MAP_KEY: ${{ vars.PUBLIC_KAKAO_MAP_KEY }}
+      BACKEND_ROLE_ARN: ${{ vars.BACKEND_ROLE_ARN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check upload safety and deployment variables
+        run: python3 scripts/scan-secrets.py && python3 scripts/check-deploy-env.py backend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew test integrationTest bootJar
+        working-directory: backend
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.BACKEND_ROLE_ARN }}
+          aws-region: ap-northeast-2
+      - name: Check existing infrastructure before image upload
+        run: |
+          test "$(aws sts get-caller-identity --query Account --output text)" = "$AWS_ACCOUNT_ID"
+          test -n "$ECS_CLUSTER" && test -n "$ECS_SERVICE" && test -n "$TASK_FAMILY"
+          aws ecr describe-repositories --repository-names "${ECR_URL#*/}" > /dev/null || { echo 'ECR이 없습니다. Main 1차 수동 인프라 생성이 필요합니다.'; exit 1; }
+          aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" --output json > /tmp/services.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/services.json'))
+          if d.get('failures') or not d.get('services') or d['services'][0]['status'] != 'ACTIVE':
+              raise SystemExit('ECS 서비스가 없습니다. Main 2차 수동 인프라 생성 후 다시 실행하세요.')
+          PY
+      - name: Build and push immutable image
+        run: |
+          aws ecr get-login-password | docker login --username AWS --password-stdin "${ECR_URL%%/*}"
+          tag="ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker build --platform linux/amd64 -t "$ECR_URL:$tag" backend
+          docker push "$ECR_URL:$tag"
+          digest=$(aws ecr describe-images --repository-name "${ECR_URL#*/}" --image-ids imageTag="$tag" --query 'imageDetails[0].imageDigest' --output text)
+          echo "IMAGE_URI=$ECR_URL@$digest" >> "$GITHUB_ENV"
+      - name: Deploy revision and verify readiness
+        env:
+          ALLOW_AWS_MUTATIONS: I_UNDERSTAND_COSTS
+        run: |
+          python3 scripts/deploy-backend.py
+          node scripts/smoke-api.mjs "$FRONTEND_URL"
+          python3 scripts/set-runtime.py --mode LIVE --bucket "$FRONTEND_BUCKET" --distribution "$CF_DISTRIBUTION_ID"
