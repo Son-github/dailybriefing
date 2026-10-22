@@ -1,0 +1,7 @@
+app:
+  jwt-secret: test-only-secret-with-at-least-32-bytes-long
+  data-mode: DEMO
+  calendar-cleanup-enabled: false
+spring:
+  datasource:
+    password: test

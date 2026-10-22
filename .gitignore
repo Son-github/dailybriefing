@@ -1,11 +1,69 @@
-.idea/
-*.iml
 .env
-backend/.env
-backend/.env.local
+.env.*
+!.env.example
+node_modules/
+dist/
+build/
+.gradle/
+*.log
+playwright-report/
+test-results/
+.DS_Store
 
-# Local build output
-**/.gradle/
-**/build/
-frontend/node_modules/
-frontend/build/
+# IDE-generated Java classes/resources
+backend/bin/
+
+# Terraform: actual inputs, state, plans and plugin cache contain sensitive account metadata
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+**/terraform.tfvars
+**/*.auto.tfvars
+**/*.auto.tfvars.json
+**/backend.hcl
+**/backend_override.tf
+crash.log
+# .terraform.lock.hcl is intentionally tracked after terraform init -backend=false.
+**/terraform.tfvars.json
+infra/before.json
+
+# CLI deployment metadata may include environment configuration
+.aws-deploy/
+
+# Python AIOps: dependency caches/generated Linux Lambda package
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.pyc
+lambda/aiops/build/
+
+# Local credentials, editor settings and private keys (public CA .pem stays tracked)
+.aws/
+.ssh/
+.codex/
+.agents/
+.idea/
+.vscode/
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+
+# Additional Terraform inputs, saved plans, local bootstrap backend and debug logs
+*.tfvars
+*.tfvars.json
+*.tfplan.*
+*.plan
+tfplan
+plan.out
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+infra/bootstrap/backend.tf

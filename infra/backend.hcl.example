@@ -1,0 +1,4 @@
+# Bootstrap 출력의 실제 고유 버킷 이름. 인증 정보는 넣지 않습니다.
+bucket = "REPLACE_WITH_STATE_BUCKET"
+key = "main/terraform.tfstate"
+region = "ap-northeast-2"

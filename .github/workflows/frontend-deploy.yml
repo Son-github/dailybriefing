@@ -1,0 +1,52 @@
+name: frontend-deploy
+on:
+  push:
+    branches: [main]
+    paths: ['frontend/**', '.github/workflows/frontend-deploy.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: aws-application-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    # 기본 비활성화. 이 파일 작성/커밋만으로 AWS 배포가 실행되지 않습니다.
+    if: github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ENABLED == 'true'
+    environment: frontend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ap-northeast-2
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      FRONTEND_BUCKET: ${{ vars.FRONTEND_BUCKET }}
+      CF_DISTRIBUTION_ID: ${{ vars.CF_DISTRIBUTION_ID }}
+      FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+      FRONTEND_ROLE_ARN: ${{ vars.FRONTEND_ROLE_ARN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check upload safety and deployment variables
+        run: python3 scripts/scan-secrets.py && python3 scripts/check-deploy-env.py frontend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci && npm run lint && npm run typecheck && npm test && npm run build
+        working-directory: frontend
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.FRONTEND_ROLE_ARN }}
+          aws-region: ap-northeast-2
+      - name: Upload assets before index; preserve runtime config and old hashed chunks
+        run: |
+          test "$(aws sts get-caller-identity --query Account --output text)" = "$AWS_ACCOUNT_ID"
+          aws cloudfront get-distribution --id "$CF_DISTRIBUTION_ID" --query Distribution.Status --output text || { echo 'CloudFront가 없습니다. Main 1차 인프라를 먼저 생성하세요.'; exit 1; }
+          aws s3api list-objects-v2 --bucket "$FRONTEND_BUCKET" --max-keys 1 --query KeyCount --output text > /dev/null || { echo 'Frontend 버킷이 없거나 권한이 없습니다. Main 1차 인프라를 확인하세요.'; exit 1; }
+          aws s3 sync frontend/dist/assets "s3://$FRONTEND_BUCKET/assets" --cache-control 'public,max-age=31536000,immutable'
+          aws s3 sync frontend/dist "s3://$FRONTEND_BUCKET" --exclude 'assets/*' --exclude runtime-config.json --cache-control 'no-cache,max-age=0'
+          aws cloudfront create-invalidation --distribution-id "$CF_DISTRIBUTION_ID" --paths /index.html
+      - run: npx playwright install --with-deps chromium && node scripts/smoke-demo.mjs "$FRONTEND_URL"
+        working-directory: frontend

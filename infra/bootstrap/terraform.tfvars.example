@@ -1,0 +1,5 @@
+# [사용자 설정 필요] 실제 값은 terraform.tfvars에 입력. 이 예제는 배포값이 아닙니다.
+aws_account_id   = "REPLACE_ACCOUNT_ID"
+state_bucket_name = "REPLACE_UNIQUE_STATE_BUCKET"
+region = "ap-northeast-2"
+project = "dailybriefing"

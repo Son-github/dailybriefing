@@ -1,0 +1,7 @@
+# bootstrap을 로컬 State로 최초 생성한 후에만 backend.tf로 복사하고 init -migrate-state 합니다.
+terraform {
+  backend "s3" {
+    encrypt = true
+    use_lockfile = true
+  }
+}

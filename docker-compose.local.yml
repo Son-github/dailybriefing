@@ -1,3 +1,0 @@
-# Compatibility shim for the old two-file command.
-# The complete local stack now lives in docker-compose.yml, so this override is empty.
-services: {}
