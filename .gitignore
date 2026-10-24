@@ -67,3 +67,18 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 infra/bootstrap/backend.tf
+
+# Terraform exported plans/state/output can contain plaintext sensitive values.
+# Export plans as base.tfplan.json or one of the names below, never as source files.
+**/tfplan.json
+**/plan.json
+**/terraform-plan*.json
+**/terraform-plan*.txt
+**/terraform-state*.json
+**/terraform-output*.json
+**/*.plan.json
+**/*.plan.txt
+**/*.tflock
+# Environment-specific real backend inputs; *.hcl.example remains shareable.
+**/backend.*.hcl
+**/backend-config*.hcl
