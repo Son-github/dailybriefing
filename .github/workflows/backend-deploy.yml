@@ -21,7 +21,8 @@ jobs:
     # 인프라를 자동 생성/삭제하거나 Terraform을 호출하지 않습니다.
     if: github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ENABLED == 'true'
     environment: backend
-    runs-on: ubuntu-latest
+    # 빌드 OS의 자동 메이저 변경을 피하고 현재 검증된 Ubuntu를 사용합니다.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
@@ -38,7 +39,7 @@ jobs:
       PUBLIC_KAKAO_MAP_KEY: ${{ vars.PUBLIC_KAKAO_MAP_KEY }}
       BACKEND_ROLE_ARN: ${{ vars.BACKEND_ROLE_ARN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check upload safety and image variables
         run: python3 scripts/scan-secrets.py && python3 scripts/check-deploy-env.py backend-image
       - name: Check deployment variables when server deployment is enabled
