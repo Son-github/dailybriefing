@@ -31,7 +31,7 @@ AWS 계정 작업은 이번에 실행하지 않았습니다. 아래는 미래 �
 
 실제 AWS IAM simulator/Access Analyzer/배포 후 Cookie/GPS/Secret rotation/snapshot 복구 검증은 별도 필요합니다. 로컬 안전장치 테스트를 AWS 보안 인증으로 해석하지 마세요.
 
-## CloudFront NoSuchCachePolicy — 2026-10-25 수정
+## CloudFront NoSuchCachePolicy
 
 사용자 apply 로그에서 CloudFront 생성이 NoSuchCachePolicy로 실패했습니다. CachingDisabled ID 오타를 공식 ID `4135ea2d-6df8-44a3-9df3-4b5a84be39ad`로 수정했습니다. HTML/default 및 /api behavior 두 곳에 적용했습니다. Assets의 CachingOptimized는 기존 공식 ID를 유지합니다. [AWS 공식 목록](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html).
 
