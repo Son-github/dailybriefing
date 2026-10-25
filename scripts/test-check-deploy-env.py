@@ -22,6 +22,14 @@ class DeploymentEnvironmentTests(unittest.TestCase):
         })
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_runtime_recovery_needs_no_image_or_ecs(self):
+        result = self.check('runtime', {
+            'AWS_ACCOUNT_ID': '123456789012', 'BACKEND_ROLE_ARN': 'example-role',
+            'FRONTEND_BUCKET': 'example-bucket', 'CF_DISTRIBUTION_ID': 'example',
+            'FRONTEND_URL': 'https://example.com',
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_missing_image_variables_report_names_only(self):
         result = self.check('backend-image', {'AWS_ACCOUNT_ID': '123456789012'})
         self.assertNotEqual(result.returncode, 0)

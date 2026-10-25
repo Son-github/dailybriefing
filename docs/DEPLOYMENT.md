@@ -34,7 +34,7 @@ terraform -chdir=infra output
 
 ## 3. Main 2차 — Backend 추가
 
-실제 가비아 API DNS/서울 ACM, 7개 Secret ARN을 채우고 enable_backend=true로 바꿉니다. 같은 Main State이며 별도 LIVE Root/-target이 없습니다.
+[도메인 안내서](DOMAIN_SETUP.md)의 API 인증서 요청(manage_api_certificate=true) → 가비아 검증 CNAME 등록 → 검증(api_certificate_validation_enabled=true)을 Backend가 꺼진 상태에서 먼저 완료합니다. 이미지 digest와 7개 Secret ARN을 확인한 후 enable_backend=true로 바꿉니다. 자동 인증서 모드에서는 alb_certificate_arn을 직접 입력하지 않습니다. 같은 Main State이며 별도 LIVE Root/-target이 없습니다.
 
 ```bash
 terraform -chdir=infra plan -out=base.tfplan
@@ -83,6 +83,10 @@ ALLOW_AWS_MUTATIONS=I_UNDERSTAND_COSTS python3 scripts/set-runtime.py --mode LIV
 Kakao SDK의 HTTPS 서비스 도메인에 실제 CF/custom frontend origin을 등록합니다. REST 키를 PUBLIC_KAKAO_MAP_KEY에 쓰지 마세요.
 
 LIVE에서 테스트 계정 가입→onboarding→로그인/refresh/logout→위젯 저장→날씨/환율/뉴스→장소/길찾기/즐겨찾기→일정CRUD→사용자별 저장→모바일 HTTPS/GPS를 확인합니다. Cookie HttpOnly/Secure/Lax와 CSRF 실패403, unauth401, 로그 requestId/한글 성공 로그를 함께 확인합니다. 실제 외부 API quota/승인이 필요하며 이번에는 AWS에서 수행하지 않았습니다.
+
+### 실행 설정만 복구할 때
+
+이미 Backend가 정상이라면 Actions의 `runtime-config`를 main/LIVE로 수동 실행하여 API smoke 후 실행 설정만 복구할 수 있습니다. backend Environment와 Repository의 AWS_DEPLOY_ENABLED=true가 필요하며, ECR 이미지/ECS 배포 변수는 요구하지 않습니다. LIVE 지도 키는 필수입니다. Terraform은 runtime-config.json을 초기 생성한 뒤 내용/메타데이터 변경을 CI에 맡깁니다. Terraform apply가 LIVE를 DEMO로 덮어쓰지 않도록 해당 S3 객체의 ignore_changes=all을 유지합니다.
 
 ## 6. 이후 Backend 앱 배포와 rollback
 

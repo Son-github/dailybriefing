@@ -88,7 +88,9 @@ resource "aws_cloudfront_response_headers_policy" "security" {
 
     content_security_policy {
 
-      content_security_policy = "default-src 'self'; script-src 'self' https://dapi.kakao.com https://t1.daumcdn.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' https://dapi.kakao.com https://*.daumcdn.net; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      # sdk.js가 실제 지도 엔진을 현재 Kakao CDN에서 추가 로드합니다.
+      # 이 주소가 빠지면 autoload=false의 maps.load 콜백이 완료되지 않습니다.
+      content_security_policy = "default-src 'self'; script-src 'self' https://dapi.kakao.com https://t1.daumcdn.net https://t1.kakaocdn.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' https://dapi.kakao.com https://*.daumcdn.net; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
       override                = true
 
     }
@@ -264,7 +266,9 @@ resource "aws_s3_object" "runtime" {
   bucket        = aws_s3_bucket.frontend.id
   key           = "runtime-config.json"
   content_type  = "application/json"
-  cache_control = "no-store, max-age=0"
+  cache_control = "no-store,max-age=0"
   content       = jsonencode({ schemaVersion = 1, mode = "STATIC_DEMO", liveEnabled = false, apiBase = "/api/v1", kakaoMapKey = "" })
-  lifecycle { ignore_changes = [content] }
+  # 초기 파일만 생성합니다. 이후 내용과 메타데이터는 runtime 배포 Actions가 소유합니다.
+  # content만 무시하면 cache_control 등 메타데이터 갱신 시 옛 DEMO 내용이 재업로드될 수 있습니다.
+  lifecycle { ignore_changes = all }
 }

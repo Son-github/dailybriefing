@@ -38,3 +38,36 @@ AWS 계정 작업은 이번에 실행하지 않았습니다. 아래는 미래 �
 사용자가 제공한 로그에는32개 자원의 생성 완료가 있습니다. 실제 계정 조회를 별도로 수행한 결과는 아닙니다. Terraform apply는 중간 실패했다고 앞서 생성한 자원을 자동으로 모두 되돌리지 않습니다. State/버킷/기존 자원을 삭제하거나 import/state rm부터 하지 마세요.
 
 코드 수정은 기존 base.tfplan을 바꾸지 않습니다. 부분 적용으로 State도 달라졌으므로 이전 계획을 재사용하지 않습니다. 오래된 base.tfplan은 로컬에서 삭제하고 같은 이름으로 새 계획을 생성해 파일을 하나만 유지합니다. 사용자가 infra 폴더에서 `terraform plan -out=base.tfplan`을 실행해 현재 State와 AWS를 다시 대조하고 결과를 확인해야 합니다. 로그만 기준으로 남은 CloudFront distribution/S3 bucket policy/GitHub 역할 inline policy2개 등4개 생성이 예상되지만 실제 새 plan이 기준입니다. 예상 밖 destroy/replacement가 있으면 적용하지 않습니다. 검토 후 실제 적용도 사용자가 직접 수행합니다. 이번 오류 수정에서는 AWS 조회/plan/apply/destroy를 실행하지 않았습니다.
+
+
+## 배포 후 지도 선택: NETWORK / 요청 번호 없음
+
+지도 SDK는 브라우저가 카카오에서 직접 읽으므로 Spring Boot 요청 번호가 없을 수 있습니다. 일반 Backend 연결 실패로 단정하지 마세요. 공개 runtime-config에 지도 키가 있고 API health가 정상이어도 SDK가 도메인 검증을 거절하면 지도는 표시되지 않습니다.
+
+2026-10-26 공개 서비스 점검에서는 카카오 SDK가 HTTP 401과 `domain mismatched`를 반환했습니다. 카카오 Developers에서 배포에 사용한 JavaScript 키가 속한 앱을 선택하고, JavaScript SDK 도메인 허용 목록에 `https://www.dailybriefing-son.site`를 정확히 등록합니다. `www`가 없는 주소나 `http://localhost:5173`만 등록한 상태와 다릅니다. 카카오맵 사용 설정 ON과 키 종류도 확인하세요. 서버 REST API 키를 공개 지도 키로 대체하지 않습니다.
+
+허용 도메인만 수정했다면 코드 재배포 없이 페이지를 새로고침하고 지도 선택을 재확인할 수 있습니다. 키 자체를 변경한 경우에는 GitHub backend Environment의 PUBLIC_KAKAO_MAP_KEY와 실제 runtime 갱신이 별도로 필요합니다. 키 원문을 로그·화면·문서에 출력하지 마세요.
+
+Frontend는 SDK script 로딩 실패를 MAP_SDK_LOAD_FAILED로 구분합니다. 브라우저 script.onerror만으로 실제 HTTP 상태를 확정할 수 없으므로 이 코드만 보고 무조건 도메인 오류라고 단정하지 않습니다. 개발자 도구 Network에서 dapi.kakao.com/v2/maps/sdk.js 응답으로 도메인·키·네트워크 차단을 구분하세요. 이 오류 안내 변경은 실제 frontend 배포 이후 반영됩니다.
+
+
+## 도메인 승인 후 지도 준비 화면에서 멈추는 경우
+
+카카오 sdk.js가 HTTP 200이어도 추가 지도 엔진은 `https://t1.kakaocdn.net/mapjsapi/js/main/.../kakao.js`에서 로드됩니다. CloudFront의 script-src에 예전 t1.daumcdn.net만 있으면 이 엔진이 CSP로 차단되어 maps.load 콜백이 완료되지 않습니다. frontend 응답 헤더 정책에 t1.kakaocdn.net을 추가했습니다. 전체 스크립트 허용이나 unsafe-eval 추가는 하지 않습니다.
+
+수정된 Terraform 코드는 사용자가 새 계획을 검토한 뒤 적용해야 합니다. 계획에 예상하지 못한 인프라 생성/삭제가 있다면 적용 전에 확인합니다. frontend 코드도 배포한 뒤 페이지를 새로고침합니다. 이미 실패한 SDK의 전역 객체가 남아 있을 수 있으므로 새로고침 없이 지도 창만 다시 열어서는 복구되지 않을 수 있습니다.
+
+Frontend는 SDK 전역 객체가 이미 존재하는 경로에도 초기화 제한 시간을 적용합니다. 지도 CDN의 securitypolicyviolation을 받으면 MAP_SDK_BLOCKED, 초기화 콜백이 10초 안에 완료되지 않으면 MAP_SDK_TIMEOUT으로 로딩을 종료합니다. 초기 sdk.js 다운로드에도 별도 10초 제한이 있습니다. 실제 배포 반영과 지도의 정상 표시 여부는 사용자 적용 후 재확인이 필요합니다.
+
+
+## Terraform 적용 후 LIVE가 샘플 모드로 바뀐 경우
+
+공개 `/runtime-config.json`의 mode와 API health를 구분해 확인합니다. API가 UP인데 runtime이 STATIC_DEMO이면 서버 장애가 아니라 실행 설정이 바뀐 것입니다. 이전 코드에서는 Terraform의 cache_control이 `no-store, max-age=0`, runtime 배포 스크립트는 `no-store,max-age=0`이어서 metadata drift가 생겼습니다. content만 ignore해도 S3 객체 metadata 변경 시 Terraform State에 남은 초기 DEMO 내용이 다시 업로드될 수 있었습니다.
+
+Terraform runtime 객체는 이제 초기 생성 후 ignore_changes=all로 CI 소유권을 유지하고 cache_control 표기도 통일합니다. 이후 Terraform으로 이 객체의 메타데이터를 고치려면 CI 소유권 정책부터 검토해야 합니다. 이 변경은 자동으로 LIVE를 복원하지 않습니다.
+
+LIVE 복구는 수동 실행 전용 `runtime-config` Actions로 진행합니다. 기존 backend Environment의 AWS_ACCOUNT_ID/BACKEND_ROLE_ARN/FRONTEND_BUCKET/CF_DISTRIBUTION_ID/FRONTEND_URL/PUBLIC_KAKAO_MAP_KEY를 사용하고 AWS_DEPLOY_ENABLED=true가 필요합니다. LIVE 선택 시 기존 API smoke를 통과해야 S3 실행 설정을 갱신하고 CloudFront의 해당 파일만 무효화합니다. ECR 업로드/ECS 재배포/Terraform 호출은 없습니다. LIVE 지도 키가 비어 있으면 파일을 변경하지 않습니다.
+
+복구 workflow 코드를 push하는 과정에서 기존 main 자동 배포가 실행될 수 있습니다. 서버 재배포를 원치 않으면 사용자가 Repository AWS_DEPLOY_ENABLED=false로 잠시 두고 코드 반영 후 자동 배포가 Skipped인지 확인합니다. 이후 true로 되돌리고 Actions → runtime-config → Run workflow → main/LIVE를 직접 실행합니다. 기존 서버는 이 스위치 변경으로 중지되지 않습니다.
+
+공개 config에서 LIVE/liveEnabled=true가 확인되면 페이지의 LIVE 다시 연결 버튼으로 브라우저에 남은 샘플 체험 선택도 해제합니다. 실제 AWS 변경은 사용자가 Actions를 실행할 때 발생하며, 코드 수정만으로 복구 완료를 주장하지 않습니다.

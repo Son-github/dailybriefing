@@ -10,9 +10,10 @@ module "vpc" {
 }
 
 module "frontend" {
-  source                   = "./modules/frontend"
-  allow_storage_cleanup    = var.allow_storage_cleanup
-  api_hostname             = var.api_hostname
+  source                = "./modules/frontend"
+  allow_storage_cleanup = var.allow_storage_cleanup
+  # 인증서만 요청하는 동안에는 아직 없는 API 원본을 CloudFront에 추가하지 않습니다.
+  api_hostname             = var.enable_backend ? var.api_hostname : ""
   frontend_bucket_name     = var.frontend_bucket_name
   frontend_certificate_arn = local.active_frontend_certificate_arn
   frontend_hostname        = local.active_frontend_hostname
@@ -55,7 +56,7 @@ module "alb" {
   source                = "./modules/alb"
   count                 = var.enable_backend ? 1 : 0 # ECR 최초 push 전에는 Backend 비용 자원을 만들지 않는 단계 설정
   alarm_sns_topic_arns  = var.alarm_sns_topic_arns
-  alb_certificate_arn   = var.alb_certificate_arn
+  alb_certificate_arn   = local.active_api_certificate_arn
   alb_security_group_id = module.vpc.alb_security_group_id
   api_hostname          = var.api_hostname
   aws_account_id        = var.aws_account_id

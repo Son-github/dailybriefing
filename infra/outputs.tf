@@ -15,6 +15,17 @@ output "frontend_certificate_dns_validation" {
   ] : []
 }
 output "ecr_url" { value = module.ecr.repository_url }
+output "api_certificate_dns_validation" {
+  description = "가비아에 등록할 API 인증서 검증 CNAME. 실제 API → ALB 연결 CNAME과 별개입니다."
+  value = var.manage_api_certificate ? [
+    for option in aws_acm_certificate.api[0].domain_validation_options : {
+      domain = option.domain_name
+      type   = option.resource_record_type
+      name   = option.resource_record_name
+      value  = option.resource_record_value
+    }
+  ] : []
+}
 output "github_roles" { value = module.iam.github_roles }
 output "backend_enabled" { value = var.enable_backend }
 output "alb_dns_name" { value = try(module.alb[0].alb_dns_name, null) }

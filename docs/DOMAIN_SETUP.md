@@ -82,16 +82,48 @@ DNS 값에는 `https://`나 경로를 넣지 않습니다. ACM 검증 CNAME과 �
 
 `https://www.dailybriefing-son.site`와 `/news`, `/transit` 직접 접속을 확인합니다. GitHub frontend/backend Environment의 `FRONTEND_URL`도 이 주소로 맞춥니다. Bucket/Distribution ID/Role ARN은 유지합니다. 화면 도메인 연결만으로 정적 DEMO가 LIVE로 전환되지는 않습니다.
 
-## 3. 향후 Backend 연결
+## 3. API 서울 인증서도 Terraform으로 요청
 
-서울 `ap-northeast-2` ACM에서 `api.dailybriefing-son.site` 인증서를 요청합니다. 검증 CNAME을 가비아에 등록하고 Issued를 확인합니다. Backend 이미지/Secret 등 준비 후 아래 값을 입력합니다.
+API 인증서는 기본 Backend 리전(`ap-northeast-2`)에 Terraform이 요청합니다. 버지니아 화면 인증서를 재사용하지 않습니다. 가비아의 검증 CNAME 등록만 수동입니다. Backend를 켜기 전에 인증서 요청과 검증을 마칠 수 있습니다.
+
+로컬 `infra/terraform.tfvars`는 다음 요청 단계로 준비되어 있습니다. 기존 image_digest, frontend 설정, Secret ARN은 유지합니다.
 
 ```hcl
-api_hostname        = "api.dailybriefing-son.site"
-alb_certificate_arn = "발급받은 서울 인증서 ARN"
+api_hostname                       = "api.dailybriefing-son.site"
+manage_api_certificate             = true
+alb_certificate_arn                = ""
+api_certificate_validation_enabled = false
+enable_backend                     = false
+enable_aiops                       = false
 ```
 
-Backend 활성화는 별도 비용 단계입니다. 준비되지 않았다면 `enable_backend=false`를 유지합니다. Backend를 생성한 후 `terraform output -raw alb_dns_name`으로 ALB 주소를 확인하여 가비아 DNS에 호스트 `api`, 종류 CNAME, 값은 실제 ALB DNS 주소로 등록합니다. Terraform은 이 외부 DNS 레코드를 생성하거나 확인하지 않습니다. API DNS 연결이 완료되기 전에는 LIVE로 전환하지 않습니다.
+### A. 인증서 요청만 적용
+
+사용자가 실행:
+
+```bash
+terraform -chdir=infra validate
+terraform -chdir=infra plan -out=base.tfplan
+# 계획 검토 후 사용자만 적용
+terraform -chdir=infra apply base.tfplan
+terraform -chdir=infra output -json api_certificate_dns_validation
+```
+
+요청 단계에는 `aws_acm_certificate.api[0]` 생성이 포함되어야 합니다. 기존 미적용 변경에 따라 다른 변경도 있을 수 있으므로 전체 계획을 확인합니다. `enable_backend=false`이므로 NAT/ALB/ECS/RDS 생성이 없어야 합니다. 인증서만 요청하는 동안에는 CloudFront에 아직 없는 API 원본도 추가하지 않습니다. 예전 base.tfplan을 재사용하지 않습니다.
+
+### B. 가비아 등록 후 발급 완료 확인
+
+출력의 name/value/type으로 검증 CNAME을 가비아 DNS에 등록하고 자동 갱신을 위해 유지합니다. 화면 인증서 검증 레코드도 그대로 둡니다. 호스트 이름에 도메인을 중복 입력하지 않습니다.
+
+등록 후 `api_certificate_validation_enabled=true`로 바꾸고 **enable_backend=false는 유지**합니다. 같은 명령으로 새 계획을 생성·검토·적용하면 ACM 발급 완료를 최대 10분 기다립니다. 전파 지연으로 시간이 초과되면 DNS를 확인하고 재시도합니다. 인증서나 State를 삭제하지 않습니다. 검증된 ARN은 코드가 내부에서 전달하므로 수동 복사할 필요가 없습니다.
+
+### C. 비용 검토 후 Backend 활성화
+
+이미지 digest/7개 Secret ARN/검증된 API 인증서 준비가 끝난 뒤에만 `enable_backend=true`로 새 계획을 만듭니다. 자동 인증서 모드에서 검증 스위치가 false이면 계획 오류를 표시합니다. NAT/ALB/ECS/RDS 비용은 이 단계의 실제 적용부터 발생할 수 있습니다. Backend가 꺼져 있어도 manage_api_certificate=true는 인증서를 계속 관리하므로, Backend 종료 때 인증서가 불필요하게 삭제되지 않습니다.
+
+Backend 생성 후 `terraform -chdir=infra output -raw alb_dns_name`으로 ALB 주소를 확인하고 가비아에 **호스트 api, 종류 CNAME, 값 실제 ALB DNS 주소**를 추가합니다. 이는 인증서 검증 CNAME과 별개의 연결 레코드입니다. API DNS 확인 전에는 Actions의 AWS_BACKEND_DEPLOY_ENABLED를 true로 바꾸거나 LIVE로 전환하지 않습니다.
+
+수동 인증서 사용도 지원합니다. 이 경우 manage_api_certificate=false와 실제 서울 alb_certificate_arn을 입력합니다. 이미 Terraform이 관리하는 인증서를 단순히 manage=false로 바꾸면 삭제 계획이 생길 수 있으므로 소유권 전환을 먼저 검토해야 합니다. Console에서 이미 인증서를 요청했다면 새로 중복 요청하기 전에 import 또는 수동 모드를 선택합니다.
 
 브라우저 API 주소는 계속 `/api/v1`입니다. ECS CORS 설정은 frontend 모듈 출력에서 새 화면 주소를 전달받습니다. API ALB 보안 그룹은 CloudFront 원본 접근 제한을 유지하므로 직접 브라우저 접속이 차단될 수 있습니다. Cookie Domain을 임의로 확장할 필요는 없습니다.
 
@@ -101,6 +133,10 @@ Kakao Developers 웹 사이트 허용 목록에 `https://www.dailybriefing-son.s
 
 가비아 도메인의 DNS 설정은 무료입니다. S3/CloudFront/ECR 등 기존 서비스 사용량과 가비아 도메인 갱신비는 별도입니다. AWS 통합용 내보내기 불가 ACM Public 인증서 자체는 무료입니다. Route 53을 사용하지 않아도 기능은 유지됩니다.
 
-로컬 설정은 자동 인증서 요청 단계(manage=true, domain_enabled=false)로 준비했습니다. 실제 AWS 인증서 요청 및 도메인 연결은 실행하지 않았습니다. 이 문서는 연결 완료 보고가 아닙니다. State와 버킷은 그대로 유지하며 AWS 조회·생성·삭제·배포는 실행하지 않았습니다.
+화면과 API 인증서는 각각 별도 관리/검증 스위치를 사용합니다. 화면 연결이 완료됐다면 기존 값을 유지하고, API 요청 단계만 추가합니다. 실제 AWS 인증서 요청 및 도메인 연결은 실행하지 않았습니다. 이 문서는 연결 완료 보고가 아닙니다. State와 버킷은 그대로 유지하며 AWS 조회·생성·삭제·배포는 실행하지 않았습니다.
 
 공식 안내: [가비아 DNS 제공](https://company.gabia.com/business/domain), [가비아 DNS 레코드 설정](https://customer.gabia.com/manual/domain/287/1201), [CloudFront 사용자 도메인](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/CNAMEs.html), [ACM 요금](https://aws.amazon.com/certificate-manager/pricing/), [Terraform 인증서 검증](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate_validation.html).
+
+### API 인증서 검증이 10분 후 실패한 경우
+
+API 검증 대기는 10분으로 유지합니다. Terraform이 시간 초과로 끝나도 ACM 인증서가 삭제되거나 검증 요청이 취소되지는 않습니다. 가비아 권한 DNS와 공개 DNS에서 기대 CNAME이 조회된다면 기존 인증서와 DNS 레코드를 유지하고 서울 ACM Console에서 Issued 상태를 확인한 후 새 계획을 생성하여 적용합니다. Pending 상태에서는 반복 apply보다 DNS와 ACM 상태 확인을 먼저 진행합니다. 장시간 지속되면 실제 도메인/검증 CNAME/실패 사유를 대조합니다. 이전 저장 계획에 다른 대기 시간이 들어 있을 수 있으므로 base.tfplan은 다시 생성합니다.

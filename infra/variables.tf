@@ -121,8 +121,25 @@ variable "allow_storage_cleanup" {
 }
 
 variable "alb_certificate_arn" {
-  type    = string
-  default = ""
+  description = "API 인증서 수동 관리 시만 입력. manage_api_certificate=true이면 비워 둡니다."
+  type        = string
+  default     = ""
+}
+
+variable "manage_api_certificate" {
+  description = "Backend와 같은 리전(기본 서울)에 api_hostname의 ACM 인증서를 요청합니다. Backend가 꺼져 있어도 요청할 수 있습니다."
+  type        = bool
+  default     = false
+}
+
+variable "api_certificate_validation_enabled" {
+  description = "가비아 검증 CNAME 등록 전 false, 등록 후 true. 자동 관리 인증서로 Backend를 켜려면 true여야 합니다."
+  type        = bool
+  default     = false
+  validation {
+    condition     = !var.manage_api_certificate || !var.enable_backend || var.api_certificate_validation_enabled
+    error_message = "자동 API 인증서 사용 시 가비아 검증 CNAME을 등록하고 api_certificate_validation_enabled=true로 설정한 뒤 Backend를 활성화하세요."
+  }
 }
 
 variable "image_digest" {

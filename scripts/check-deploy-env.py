@@ -5,11 +5,12 @@ import sys
 common = ['AWS_ACCOUNT_ID', 'FRONTEND_BUCKET', 'CF_DISTRIBUTION_ID', 'FRONTEND_URL']
 required = {
     'backend-image': ['AWS_ACCOUNT_ID', 'BACKEND_ROLE_ARN', 'ECR_URL'],
+    'runtime': common + ['BACKEND_ROLE_ARN'],
     'frontend': common + ['FRONTEND_ROLE_ARN'],
     'backend': common + ['BACKEND_ROLE_ARN', 'ECR_URL', 'ECS_CLUSTER', 'ECS_SERVICE', 'TASK_FAMILY'],
 }
 if len(sys.argv) != 2 or sys.argv[1] not in required:
-    raise SystemExit('Usage: python3 scripts/check-deploy-env.py frontend|backend-image|backend')
+    raise SystemExit('Usage: python3 scripts/check-deploy-env.py ' + '|'.join(required))
 missing = [key for key in required[sys.argv[1]] if not os.environ.get(key, '').strip()]
 if missing:
     raise SystemExit('GitHub Variables 설정 필요: ' + ', '.join(missing))

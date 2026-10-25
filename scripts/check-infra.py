@@ -37,6 +37,10 @@ for p in (ROOT/'.github/workflows').glob('*.yml'):
     assert not re.search(r'terraform[^\n]*(?:\bapply\b|\bdestroy\b|\bplan\b)',s),str(p)
     assert 'live-plan' not in s and 'live-apply' not in s,str(p)
 assert 'state_bucket' not in read('infra/modules/iam/main.tf')
+# runtimeは初回生成後CIが所有します。メタデータ差分によるDEMO再アップロードを防ぎます。
+runtime = read('infra/modules/frontend/main.tf').split('resource "aws_s3_object" "runtime" {', 1)[1]
+assert re.search(r'ignore_changes\s*=\s*all', runtime)
+assert 'no-store,max-age=0' in runtime
 
 aiops=read('infra/modules/aiops/main.tf')
 assert 'vpc_config' not in aiops

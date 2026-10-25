@@ -16,6 +16,12 @@ image_digest = ""
 # DEMO만 사용하는 경우 빈 문자열 유지 가능. LIVE에는 가비아 API CNAME/서울 ACM 필요.
 api_hostname = ""
 alb_certificate_arn = ""
+manage_api_certificate = false
+api_certificate_validation_enabled = false
+# 실제 사용: api_hostname="api.dailybriefing-son.site", manage_api_certificate=true,
+# validation_enabled=false, enable_backend=false로 인증서 요청만 먼저 적용합니다.
+# 검증 CNAME을 가비아에 등록 후 api_certificate_validation_enabled=true로 검증합니다.
+# 자동 관리 시 alb_certificate_arn은 비워 두며, 검증 후에만 Backend를 활성화합니다.
 # 인증서 요청 단계 예시. 사용자 apply 전에는 실제 AWS 인증서를 요청하지 않습니다.
 frontend_hostname = ""
 frontend_certificate_arn = ""
