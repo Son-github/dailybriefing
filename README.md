@@ -51,7 +51,7 @@ React·Spring Boot 애플리케이션부터 AWS 네트워크, 인증, CI/CD, 장
 
 **현재 규모:** Fargate 1 Task, 운영 설정 0.25 vCPU / 1GiB, RDS `db.t4g.micro` / gp3 20GiB / Single-AZ, NAT Gateway 1개입니다. 두 AZ에 서브넷과 ALB를 구성했지만 두 번째 AZ에 실행 Task나 Standby DB는 없습니다. **전체 서비스의 고가용성을 보장하는 구조는 아닙니다.**
 
-## CI/CD — 애플리케이션과 인프라의 책임 분리
+## CI/CD — 애플리케이션과 인프라의 분리
 
 ![GitHub Actions 앱 배포와 수동 Terraform 운영](docs/assets/architecture/delivery-architecture.png)
 
