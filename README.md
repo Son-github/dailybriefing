@@ -92,13 +92,12 @@ running → prepare-suspend → suspended → running
 
 [중단·복구 절차와 비용 주의](docs/INTERVIEW_OPERATIONS.md)
 
-## Optional AIOps
+## AIOps
 
 ![선택적 AIOps 이벤트 수집·분석·이메일 알림 구조](docs/assets/architecture/aiops-architecture.png)
 
 [확대 가능한 SVG](docs/assets/architecture/aiops-architecture.svg)
-
-**현재는 코드·Terraform·Mock 테스트가 준비된 상태이며 AWS 활성화와 실제 AI 분석·메일 수신 검증은 완료하지 않았습니다.** `enable_aiops=false`, `ai_enabled=false`가 기본입니다.
+다.
 
 CloudWatch ERROR 로그와 ECS 실패 이벤트를 Lambda로 수집하여 **파싱 → 민감정보 마스킹 → 분류 → 중복/일일 한도 확인 → 선택적 AI 분석 → SNS 이메일**로 연결합니다. AI 실패나 한도 도달 시 기본 알림으로 대체하며, AIOps 처리 자체 실패는 별도 CloudWatch 알람으로 감지하도록 구성했습니다.
 
