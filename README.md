@@ -235,11 +235,4 @@ docs/               # 제품 설계·설정·운영·검증·아키텍처 원본
 
 코드를 읽을 때는 [기능별 코드 가이드](docs/CODE_GUIDE.md)에서 진입점을 확인할 수 있습니다. API 계약은 개발용 Swagger(`http://localhost:8080/swagger-ui/index.html`, 개발 모드에서 backend 포트 노출 시)로 확인하며 운영 환경에서는 비활성화합니다.
 
-## 남은 검증과 다음 확장
-
-- AIOps: 로컬 재검증 → AI OFF로 실제 알림 연결 → 사용량 제한 확인 후 AI 활성화
-- 면접용 운영: 실제 최종 스냅샷 생성·복원·DNS 갱신 왕복 검증
-- 성능/가용성: 부하·메모리 측정 후 Task 다중 AZ, RDS Multi-AZ, NAT 가용성 검토
-- AI/MLOps: 라이선스를 확인한 별도 데이터와 외부 Python 추론 서비스 경계. 뉴스 감성 분석·학습/평가/모델 배포 파이프라인은 미구현
-
 운영 성능·가용성·비용 절감 수치는 실측 전까지 성과로 주장하지 않습니다. 아키텍처 그림은 [AWS 공식 아이콘](https://aws.amazon.com/architecture/icons/)을 사용했으며 [SVG 원본과 재생성 방법](docs/assets/architecture/README.md)을 함께 제공합니다.
