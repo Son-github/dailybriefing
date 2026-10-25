@@ -21,7 +21,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: npm ci && npm run lint && npm run typecheck && npm test && npm run build
         working-directory: frontend
-      - run: node scripts/test-spa-router.mjs && python3 scripts/check-infra.py && python3 scripts/scan-secrets.py && python3 scripts/test-deploy-backend.py
+      - run: node scripts/test-spa-router.mjs && python3 scripts/check-infra.py && python3 scripts/scan-secrets.py && python3 scripts/test-deploy-backend.py && python3 scripts/test-check-deploy-env.py
       - run: ./gradlew test integrationTest bootJar
         working-directory: backend
       - name: Disposable local CI settings (no provider keys)

@@ -10,16 +10,22 @@ github_repository_subject = "repo:Son-github/dailybriefing"
 create_github_oidc_provider = false
 existing_github_oidc_provider_arn = "REPLACE_WITH_EXISTING_OIDC_ARN"
 create_service_linked_roles = false
-# 1차는 정적 DEMO/ECR만. 수동 image push 후 아래를 true로 바꾸어 2차 적용합니다.
+# 1차는 정적 DEMO/ECR만. Actions image push 후 아래를 true로 바꾸어 2차 적용합니다.
 enable_backend = false
 image_digest = ""
-# DEMO만 사용하는 경우 빈 문자열 유지 가능. LIVE에는 실제 DNS/서울 ACM 필요.
+# DEMO만 사용하는 경우 빈 문자열 유지 가능. LIVE에는 가비아 API CNAME/서울 ACM 필요.
 api_hostname = ""
-api_hosted_zone_id = ""
 alb_certificate_arn = ""
-# 선택 사항: frontend 사용자 도메인은 us-east-1 ACM 필요. 기본 CF HTTPS 도메인은 인증서 입력 불필요.
+# 인증서 요청 단계 예시. 사용자 apply 전에는 실제 AWS 인증서를 요청하지 않습니다.
 frontend_hostname = ""
 frontend_certificate_arn = ""
+manage_frontend_certificate = false
+frontend_domain_enabled = false
+# 실제 사용: hostname="www.dailybriefing-son.site", manage=true, domain_enabled=false로 1차 적용.
+# 출력된 검증 CNAME을 가비아에 등록한 뒤 domain_enabled=true로 2차 적용합니다.
+# dailybriefing-son.site 연결 순서/실제 입력 예시는 docs/DOMAIN_SETUP.md 참고.
+# 자동 관리 시 인증서 ARN은 직접 입력하지 않습니다.
+# API hostname은 Backend 활성화 단계에서 api.dailybriefing-son.site로 설정합니다.
 # 비밀값 자체 금지. 활성화 전 7개 이름의 동일 계정/서울 SecureString 또는 Secret ARN 모두 지정.
 application_secrets = {}
 # application_secrets = { JWT_SECRET = "arn:aws:ssm:ap-northeast-2:실제계정:parameter/dailybriefing/JWT_SECRET", ... }

@@ -30,3 +30,11 @@ AWS 계정 작업은 이번에 실행하지 않았습니다. 아래는 미래 �
 | 삭제 후 과금 | NAT deleted + EIP 해제 각각 확인, RDS snapshot/backup/사용자 Secret/State/로그 저장소/HostedZone 확인. Billing 반영 지연 고려 |
 
 실제 AWS IAM simulator/Access Analyzer/배포 후 Cookie/GPS/Secret rotation/snapshot 복구 검증은 별도 필요합니다. 로컬 안전장치 테스트를 AWS 보안 인증으로 해석하지 마세요.
+
+## CloudFront NoSuchCachePolicy — 2026-10-25 수정
+
+사용자 apply 로그에서 CloudFront 생성이 NoSuchCachePolicy로 실패했습니다. CachingDisabled ID 오타를 공식 ID `4135ea2d-6df8-44a3-9df3-4b5a84be39ad`로 수정했습니다. HTML/default 및 /api behavior 두 곳에 적용했습니다. Assets의 CachingOptimized는 기존 공식 ID를 유지합니다. [AWS 공식 목록](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html).
+
+사용자가 제공한 로그에는32개 자원의 생성 완료가 있습니다. 실제 계정 조회를 별도로 수행한 결과는 아닙니다. Terraform apply는 중간 실패했다고 앞서 생성한 자원을 자동으로 모두 되돌리지 않습니다. State/버킷/기존 자원을 삭제하거나 import/state rm부터 하지 마세요.
+
+코드 수정은 기존 base.tfplan을 바꾸지 않습니다. 부분 적용으로 State도 달라졌으므로 이전 계획을 재사용하지 않습니다. 오래된 base.tfplan은 로컬에서 삭제하고 같은 이름으로 새 계획을 생성해 파일을 하나만 유지합니다. 사용자가 infra 폴더에서 `terraform plan -out=base.tfplan`을 실행해 현재 State와 AWS를 다시 대조하고 결과를 확인해야 합니다. 로그만 기준으로 남은 CloudFront distribution/S3 bucket policy/GitHub 역할 inline policy2개 등4개 생성이 예상되지만 실제 새 plan이 기준입니다. 예상 밖 destroy/replacement가 있으면 적용하지 않습니다. 검토 후 실제 적용도 사용자가 직접 수행합니다. 이번 오류 수정에서는 AWS 조회/plan/apply/destroy를 실행하지 않았습니다.

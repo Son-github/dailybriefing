@@ -38,7 +38,8 @@
 - [ ] 배포할 때만 AWS_DEPLOY_ENABLED=true. 인프라 생성·삭제 Workflow는 없으며 Actions는 앱 배포만 수행함.
 - [ ] frontend-deploy 실행/승인. CF URL과 실제 라우트 직접 접근/새로고침, STATIC_DEMO 샘플 표시/API 요청0 확인.
 - [ ] same-origin `/api/v1/health` 200/UP, CSRF/unauth smoke 성공 후 runtime LIVE로 전환. 서버 Secret을 runtime 파일에 넣지 않기.
-- [ ] 이후 backend-deploy 실행 시 image push→revision/service→새 revision 확인→API smoke→LIVE 전환 성공 확인. 구 revision rollback은 실패로 처리됨.
+- [ ] 최초 이미지: backend Environment의 계정/Role/ECR만 등록, Repository AWS_DEPLOY_ENABLED=true 및 AWS_BACKEND_DEPLOY_ENABLED=false로 Actions 업로드. Summary digest를 tfvars에 입력.
+- [ ] Backend/API DNS 준비 후 AWS_BACKEND_DEPLOY_ENABLED=true. 이후 backend-deploy 실행 시 image push→revision/service→새 revision 확인→API smoke→LIVE 전환 성공 확인. 구 revision rollback은 실패로 처리됨.
 - [ ] Terraform으로 env/CPU/Secret을 변경했다면 backend-deploy까지 실행해 새 template 반영. Secret rotation 후에도 재배포 필요.
 
 ## 5. 실제 서비스 확인 — 사용자

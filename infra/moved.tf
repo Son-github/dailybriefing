@@ -195,10 +195,6 @@ moved {
   to   = module.alb[0].aws_lb_listener.https
 }
 
-moved {
-  from = module.application[0].aws_route53_record.api
-  to   = module.alb[0].aws_route53_record.api
-}
 
 moved {
   from = module.application[0].aws_ecs_cluster.main

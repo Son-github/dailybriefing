@@ -48,10 +48,24 @@ variable "frontend_hostname" {
 }
 
 variable "frontend_certificate_arn" {
-  type    = string
-  default = ""
+  description = "수동 발급 인증서 사용 시만 입력. manage_frontend_certificate=true이면 빈 값으로 둡니다."
+  type        = string
+  default     = ""
 
 }
+
+variable "manage_frontend_certificate" {
+  description = "true이면 frontend_hostname의 ACM 인증서를 Terraform이 요청하고 관리합니다."
+  type        = bool
+  default     = false
+}
+
+variable "frontend_domain_enabled" {
+  description = "가비아 검증 CNAME 등록 전 false, 등록 후 true. false이면 기존 CloudFront 기본 주소를 유지합니다."
+  type        = bool
+  default     = true
+}
+
 
 variable "api_hostname" {
   type    = string
@@ -100,10 +114,6 @@ variable "secret_kms_key_arns" {
 
 }
 
-variable "api_hosted_zone_id" {
-  type    = string
-  default = ""
-}
 
 variable "allow_storage_cleanup" {
   type    = bool

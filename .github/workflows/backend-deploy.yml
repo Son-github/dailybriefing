@@ -1,5 +1,14 @@
 name: backend-deploy
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-deploy.yml'
+      - 'scripts/check-deploy-env.py'
+      - 'scripts/deploy-backend.py'
+      - 'scripts/smoke-api.mjs'
+      - 'scripts/set-runtime.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -8,7 +17,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    # 수동 앱 배포 전용입니다. 인프라를 자동 생성/삭제하거나 Terraform을 호출하지 않습니다.
+    # 이미지 업로드는 ECS 없이도 실행합니다. 서버 배포는 별도 플래그로 활성화합니다.
+    # 인프라를 자동 생성/삭제하거나 Terraform을 호출하지 않습니다.
     if: github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ENABLED == 'true'
     environment: backend
     runs-on: ubuntu-latest
@@ -29,8 +39,11 @@ jobs:
       BACKEND_ROLE_ARN: ${{ vars.BACKEND_ROLE_ARN }}
     steps:
       - uses: actions/checkout@v4
-      - name: Check upload safety and deployment variables
-        run: python3 scripts/scan-secrets.py && python3 scripts/check-deploy-env.py backend
+      - name: Check upload safety and image variables
+        run: python3 scripts/scan-secrets.py && python3 scripts/check-deploy-env.py backend-image
+      - name: Check deployment variables when server deployment is enabled
+        if: vars.AWS_BACKEND_DEPLOY_ENABLED == 'true'
+        run: python3 scripts/check-deploy-env.py backend
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -45,11 +58,13 @@ jobs:
         with:
           role-to-assume: ${{ vars.BACKEND_ROLE_ARN }}
           aws-region: ap-northeast-2
-      - name: Check existing infrastructure before image upload
+      - name: Check account and existing ECR repository
         run: |
           test "$(aws sts get-caller-identity --query Account --output text)" = "$AWS_ACCOUNT_ID"
-          test -n "$ECS_CLUSTER" && test -n "$ECS_SERVICE" && test -n "$TASK_FAMILY"
           aws ecr describe-repositories --repository-names "${ECR_URL#*/}" > /dev/null || { echo 'ECR이 없습니다. Main 1차 수동 인프라 생성이 필요합니다.'; exit 1; }
+      - name: Check existing ECS when server deployment is enabled
+        if: vars.AWS_BACKEND_DEPLOY_ENABLED == 'true'
+        run: |
           aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" --output json > /tmp/services.json
           python3 - <<'PY'
           import json
@@ -64,8 +79,24 @@ jobs:
           docker build --platform linux/amd64 -t "$ECR_URL:$tag" backend
           docker push "$ECR_URL:$tag"
           digest=$(aws ecr describe-images --repository-name "${ECR_URL#*/}" --image-ids imageTag="$tag" --query 'imageDetails[0].imageDigest' --output text)
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo 'ECR 이미지 digest 확인 실패'; exit 1; }
           echo "IMAGE_URI=$ECR_URL@$digest" >> "$GITHUB_ENV"
+          {
+            echo '## Backend 이미지 업로드 완료'
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Tag: $tag"
+            echo "- Image: $ECR_URL@$digest"
+            echo ''
+            echo 'Terraform 최초 Backend 생성 시 아래 값을 image_digest에 입력하세요.'
+            echo '```hcl'
+            echo "image_digest = \"$digest\""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Explain image-only result
+        if: vars.AWS_BACKEND_DEPLOY_ENABLED != 'true'
+        run: echo '이미지 업로드만 완료했습니다. ECS 배포와 LIVE 전환은 실행하지 않았습니다.' >> "$GITHUB_STEP_SUMMARY"
       - name: Deploy revision and verify readiness
+        if: vars.AWS_BACKEND_DEPLOY_ENABLED == 'true'
         env:
           ALLOW_AWS_MUTATIONS: I_UNDERSTAND_COSTS
         run: |

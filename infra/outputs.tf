@@ -2,9 +2,22 @@
 output "frontend_url" { value = module.frontend.frontend_url }
 output "frontend_bucket" { value = module.frontend.frontend_bucket }
 output "cloudfront_id" { value = module.frontend.cloudfront_id }
+output "cloudfront_domain_name" { value = module.frontend.cloudfront_domain_name }
+output "frontend_certificate_dns_validation" {
+  description = "가비아에 등록할 검증 CNAME. 인증서 자동 갱신을 위해 유지하세요. 값에는 https://를 붙이지 않습니다."
+  value = var.manage_frontend_certificate ? [
+    for option in aws_acm_certificate.frontend[0].domain_validation_options : {
+      domain = option.domain_name
+      type   = option.resource_record_type
+      name   = option.resource_record_name
+      value  = option.resource_record_value
+    }
+  ] : []
+}
 output "ecr_url" { value = module.ecr.repository_url }
 output "github_roles" { value = module.iam.github_roles }
 output "backend_enabled" { value = var.enable_backend }
+output "alb_dns_name" { value = try(module.alb[0].alb_dns_name, null) }
 output "cluster_name" { value = try(module.ecs[0].cluster_name, null) }
 output "service_name" { value = try(module.ecs[0].service_name, null) }
 output "target_group_arn" { value = try(module.alb[0].target_group_arn, null) }

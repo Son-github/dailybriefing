@@ -334,6 +334,7 @@ React `dist`는 S3 정적 artifact, backend는 동일 Docker image, DB는 endpoi
 
 - [직접 해야 할 AWS 체크리스트](docs/MY_AWS_CHECKLIST.md)
 - [AWS 최초 준비](docs/AWS_SETUP.md)
+- [dailybriefing-son.site 도메인·HTTPS 연결](docs/DOMAIN_SETUP.md)
 - [Terraform 구조·State·이전 주의](docs/TERRAFORM_STRUCTURE.md)
 - [모든 환경변수와 발급처](docs/ENVIRONMENT_VARIABLES.md)
 - [LOCAL과 AWS 비교](docs/LOCAL_VS_AWS.md)

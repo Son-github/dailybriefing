@@ -19,31 +19,27 @@ terraform -chdir=infra output
 
 출력된 ecr_url/frontend_bucket/cloudfront_id/github_roles를 기록합니다. ECS/RDS가 아직 없는 것은 정상이며 **LIVE 배포 성공이 아닙니다.** 정적 DEMO를 배포해 테스트할 수 있습니다.
 
-## 2. 최초 Backend 이미지 — 사용자가 수동 업로드
+## 2. 최초 Backend 이미지 — GitHub Actions 자동 업로드
 
-ECR을 Main 1차에서 먼저 생성했기 때문에 다음 push가 가능합니다. 변경 가능한 latest 태그를 사용하지 않습니다.
+`backend-deploy.yml`은 main의 Backend 관련 파일 push 또는 수동 실행 시 테스트 → 이미지 빌드 → ECR push를 수행합니다. 첫 이미지에는 ECS가 필요하지 않습니다. 인프라를 생성하거나 Terraform을 실행하지 않습니다. 이미지 태그는 `ci-실행ID-재시도번호`로 고유하며 amd64로 빌드합니다.
 
-```bash
-ECR_URL=$(terraform -chdir=infra output -raw ecr_url)
-REGISTRY=${ECR_URL%%/*}
-REPOSITORY=${ECR_URL#*/}
-TAG="manual-$(date +%Y%m%d%H%M%S)"
-aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin "$REGISTRY"
-docker build --platform linux/amd64 -t "$ECR_URL:$TAG" backend
-docker push "$ECR_URL:$TAG"
-aws ecr describe-images --repository-name "$REPOSITORY" --image-ids imageTag="$TAG" --query 'imageDetails[0].imageDigest' --output text
-```
+1. GitHub Settings → Environments → `backend`를 생성합니다. 기존 IAM OIDC 신뢰는 이 Environment 이름을 사용하므로 정확히 일치해야 합니다. 가능하면 배포 branch를 main으로 제한합니다.
+2. `backend` Environment Variables에는 최초 업로드용으로 `AWS_ACCOUNT_ID`, `BACKEND_ROLE_ARN`, `ECR_URL` 세 개만 입력합니다. 값은 기존 Terraform output `github_roles`의 backend ARN과 `ecr_url`에서 확인합니다. AWS Access Key를 GitHub에 등록하지 않고 OIDC를 사용합니다.
+3. Repository Variables의 `AWS_DEPLOY_ENABLED=true`, `AWS_BACKEND_DEPLOY_ENABLED=false`로 설정합니다. 전자는 기존 frontend와 공유하는 전체 앱 배포 스위치이며 job 시작 전에 평가되므로 Repository에 둡니다. 후자는 서버 배포 스위치입니다. backend Environment에 같은 이름의 값을 중복 등록하지 않습니다.
+4. 변경 파일을 main에 반영하면 Backend 관련 push에서 자동 실행됩니다. 수동 실행은 Actions → backend-deploy → Run workflow → main으로 진행합니다. 코드 작성만으로 실행된 것은 아니며 실제 push/실행은 사용자 작업입니다.
 
-출력 sha256 digest를 tfvars image_digest에 입력합니다. Apple Silicon도 Fargate의 X86_64에 맞춰 amd64로 빌드합니다. 자격증명/secret을 build arg에 넣지 않습니다.
+성공한 실행의 Summary에는 이미지 URI, 태그, commit, `image_digest = "sha256:..."`가 표시됩니다. 이 digest를 로컬 tfvars에 입력합니다. 서버 배포 플래그가 false이면 ECS API, 서버 배포, API smoke, runtime LIVE 전환은 실행하지 않습니다. ECR 저장비와 GitHub Actions 사용량은 발생할 수 있습니다.
+
+현재 단계에서는 frontend 주소/버킷/Distribution/ECS 변수가 없어도 이미지 업로드가 가능합니다. 전체 앱 배포 스위치가 false 또는 미설정이면 workflow job은 Skipped입니다. 테스트 실패나 ECR 부재는 실패로 처리하며 저장소를 자동 생성하지 않습니다.
 
 ## 3. Main 2차 — Backend 추가
 
-실제 API DNS/Hosted Zone/서울 ACM, 7개 Secret ARN을 채우고 enable_backend=true로 바꿉니다. 같은 Main State이며 별도 LIVE Root/-target이 없습니다.
+실제 가비아 API DNS/서울 ACM, 7개 Secret ARN을 채우고 enable_backend=true로 바꿉니다. 같은 Main State이며 별도 LIVE Root/-target이 없습니다.
 
 ```bash
-terraform -chdir=infra plan -out=backend.tfplan
+terraform -chdir=infra plan -out=base.tfplan
 # NAT/EIP/ALB/ECS/RDS 비용과 DB 정책을 사용자 검토 후
-terraform -chdir=infra apply backend.tfplan
+terraform -chdir=infra apply base.tfplan
 terraform -chdir=infra output
 ```
 
@@ -53,7 +49,7 @@ Flyway의 PostgreSQL 잠금은 동시 migration 실행을 조정합니다. 여�
 
 ## 4. Frontend 배포
 
-GitHub Environment/Variables를 채운 뒤 사용자가 앱 배포를 승인할 때만 AWS_DEPLOY_ENABLED=true로 설정합니다. frontend-deploy는 main push 또는 수동 실행, backend-deploy는 수동 실행입니다. 두 배포는 concurrency로 직렬화합니다. **GitHub Actions는 Terraform을 실행해 인프라를 생성·삭제하지 않습니다.**
+GitHub Environment/Variables를 채운 뒤 사용자가 앱 배포를 승인할 때만 AWS_DEPLOY_ENABLED=true로 설정합니다. frontend-deploy는 main push 또는 수동 실행, backend-deploy는 main의 Backend 관련 변경 push 또는 수동 실행입니다. 서버 배포는 AWS_BACKEND_DEPLOY_ENABLED=true일 때만 실행합니다. 두 배포는 concurrency로 직렬화합니다. **GitHub Actions는 Terraform을 실행해 인프라를 생성·삭제하지 않습니다.**
 
 ```bash
 # 인프라가 준비된 이후에만 사용자가 실행
@@ -94,7 +90,7 @@ LIVE에서 테스트 계정 가입→onboarding→로그인/refresh/logout→위
 gh workflow run backend-deploy.yml --ref main
 ```
 
-기존 ECR/ECS가 없으면 원인을 표시하고 중단합니다. 새 digest push→최신 task family 설정의 image만 교체→revision 등록→service update→wait→**현재 service revision이 신규 revision인지 확인**→same-origin API smoke→runtime LIVE 순서입니다. Circuit breaker가 구버전으로 rollback되어 waiter가 성공해도 신규 revision 검사가 이를 실패로 처리합니다.
+Backend 인프라 생성 및 API DNS 연결 후 backend Environment에 AWS_ACCOUNT_ID/BACKEND_ROLE_ARN/ECR_URL 외 ECS_CLUSTER/ECS_SERVICE/TASK_FAMILY/FRONTEND_URL/FRONTEND_BUCKET/CF_DISTRIBUTION_ID/PUBLIC_KAKAO_MAP_KEY를 입력하고, Repository의 AWS_BACKEND_DEPLOY_ENABLED=true로 전환합니다. 실제 지도에는 공개 JavaScript 지도 키를 사용합니다. ECR 또는 활성 ECS가 없으면 서버 배포 모드에서는 중단합니다. 새 digest push→최신 task family 설정의 image만 교체→revision 등록→service update→wait→**현재 service revision이 신규 revision인지 확인**→same-origin API smoke→runtime LIVE 순서입니다. Circuit breaker가 구버전으로 rollback되어 waiter가 성공해도 신규 revision 검사가 이를 실패로 처리합니다.
 
 Terraform은 환경/역할/Secret/네트워크와 task template을 관리하고, service의 task_definition은 ignore_changes로 CI의 최신 revision을 되돌리지 않습니다. Terraform으로 CPU/env/Secret을 변경하면 새 revision이 등록되지만 서비스는 자동 전환되지 않습니다. 반드시 backend-deploy를 이어 실행해 최신 family 설정을 반영하세요. image_digest tfvar도 현재 성공 digest로 갱신하면 재생성 시 구버전 이미지 혼동을 줄일 수 있습니다.
 

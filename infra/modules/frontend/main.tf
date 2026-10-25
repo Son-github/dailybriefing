@@ -97,6 +97,8 @@ resource "aws_cloudfront_response_headers_policy" "security" {
 
 }
 
+# AWS 관리 정책 ID는 공식 목록과 대조합니다. fmt/validate는 ID의 실제 존재 여부까지 확인하지 않습니다.
+# https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
 resource "aws_cloudfront_distribution" "frontend" {
 
   enabled             = true
@@ -139,7 +141,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     allowed_methods            = ["GET", "HEAD", "OPTIONS"]
     cached_methods             = ["GET", "HEAD"]
     compress                   = true
-    cache_policy_id            = "413f160f-6f8b-44a3-9df3-4b5a84be39ad" # Managed CachingDisabled: HTML/런타임 설정 stale 방지
+    cache_policy_id            = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # Managed CachingDisabled: HTML/런타임 설정 stale 방지
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
     function_association {
       event_type   = "viewer-request"
@@ -172,7 +174,7 @@ resource "aws_cloudfront_distribution" "frontend" {
       viewer_protocol_policy     = "https-only"
       allowed_methods            = ["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"]
       cached_methods             = ["GET", "HEAD"]
-      cache_policy_id            = "413f160f-6f8b-44a3-9df3-4b5a84be39ad"
+      cache_policy_id            = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
       origin_request_policy_id   = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # AllViewerExceptHostHeader: Authorization/Cookie/CSRF 전달
       response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
 

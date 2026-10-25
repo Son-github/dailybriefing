@@ -12,10 +12,6 @@ variable "alb_certificate_arn" {
 
 variable "alb_security_group_id" { type = string }
 
-variable "api_hosted_zone_id" {
-  type    = string
-  default = ""
-}
 
 variable "api_hostname" {
   type    = string

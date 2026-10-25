@@ -4,14 +4,15 @@ import sys
 
 common = ['AWS_ACCOUNT_ID', 'FRONTEND_BUCKET', 'CF_DISTRIBUTION_ID', 'FRONTEND_URL']
 required = {
+    'backend-image': ['AWS_ACCOUNT_ID', 'BACKEND_ROLE_ARN', 'ECR_URL'],
     'frontend': common + ['FRONTEND_ROLE_ARN'],
     'backend': common + ['BACKEND_ROLE_ARN', 'ECR_URL', 'ECS_CLUSTER', 'ECS_SERVICE', 'TASK_FAMILY'],
 }
 if len(sys.argv) != 2 or sys.argv[1] not in required:
-    raise SystemExit('Usage: python3 scripts/check-deploy-env.py frontend|backend')
+    raise SystemExit('Usage: python3 scripts/check-deploy-env.py frontend|backend-image|backend')
 missing = [key for key in required[sys.argv[1]] if not os.environ.get(key, '').strip()]
 if missing:
     raise SystemExit('GitHub Variables 설정 필요: ' + ', '.join(missing))
-if not os.environ['FRONTEND_URL'].startswith('https://'):
+if 'FRONTEND_URL' in required[sys.argv[1]] and not os.environ['FRONTEND_URL'].startswith('https://'):
     raise SystemExit('FRONTEND_URL에는 HTTPS origin을 입력하세요.')
 print('PASS: 필수 배포 변수 설정 확인')

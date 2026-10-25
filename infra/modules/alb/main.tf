@@ -51,8 +51,8 @@ resource "aws_lb_listener" "https" {
 
     precondition {
 
-      condition     = var.api_hostname != "" && var.api_hosted_zone_id != "" && startswith(var.alb_certificate_arn, "arn:aws:acm:${var.region}:${var.aws_account_id}:certificate/")
-      error_message = "LIVE 공개에는 실제 API DNS/Hosted Zone과 동일 리전/계정의 ACM 인증서가 필요합니다."
+      condition     = var.api_hostname != "" && startswith(var.alb_certificate_arn, "arn:aws:acm:${var.region}:${var.aws_account_id}:certificate/")
+      error_message = "LIVE 공개에는 실제 API DNS와 동일 리전/계정의 ACM 인증서가 필요합니다."
 
     }
 
@@ -60,20 +60,6 @@ resource "aws_lb_listener" "https" {
 
 }
 
-resource "aws_route53_record" "api" {
-
-  zone_id = var.api_hosted_zone_id
-  name    = var.api_hostname
-  type    = "A"
-  alias {
-
-    name                   = aws_lb.main.dns_name
-    zone_id                = aws_lb.main.zone_id
-    evaluate_target_health = true
-
-  }
-
-}
 
 locals {
   alarms = {
