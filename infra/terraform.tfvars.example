@@ -12,6 +12,9 @@ existing_github_oidc_provider_arn = "REPLACE_WITH_EXISTING_OIDC_ARN"
 create_service_linked_roles = false
 # 1차는 정적 DEMO/ECR만. Actions image push 후 아래를 true로 바꾸어 2차 적용합니다.
 enable_backend = false
+# 면접용 중단·재개는 이 값을 false로 바꾸거나 전체 destroy하지 않습니다.
+# 최초 Backend 생성 후 scripts/interview.py가 별도 Git 제외 overlay를 준비합니다.
+# 기본 interview_mode=running은 기존 동작을 유지합니다. docs/INTERVIEW_OPERATIONS.md 참고.
 image_digest = ""
 # DEMO만 사용하는 경우 빈 문자열 유지 가능. LIVE에는 가비아 API CNAME/서울 ACM 필요.
 api_hostname = ""

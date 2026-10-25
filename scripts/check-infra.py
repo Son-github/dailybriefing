@@ -41,6 +41,11 @@ assert 'state_bucket' not in read('infra/modules/iam/main.tf')
 runtime = read('infra/modules/frontend/main.tf').split('resource "aws_s3_object" "runtime" {', 1)[1]
 assert re.search(r'ignore_changes\s*=\s*all', runtime)
 assert 'no-store,max-age=0' in runtime
+interview = read('infra/interview.tf')
+assert 'var.enable_backend && var.interview_mode != "suspended"' in interview
+assert 'self.status == "available" && self.engine == "postgres"' in interview
+assert 'enable_backend     = var.enable_backend' in read('infra/main.tf')  # SG/VPC는 중단 중에도 유지
+assert read('infra/main.tf').count('count                 = local.backend_running ? 1 : 0') >= 1
 
 aiops=read('infra/modules/aiops/main.tf')
 assert 'vpc_config' not in aiops

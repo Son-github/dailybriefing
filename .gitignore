@@ -21,6 +21,7 @@ backend/bin/
 **/terraform.tfvars
 **/*.auto.tfvars
 **/*.auto.tfvars.json
+**/interview.auto.tfvars.json.tmp
 **/backend.hcl
 **/backend_override.tf
 crash.log

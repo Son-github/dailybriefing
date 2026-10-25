@@ -13,7 +13,7 @@ module "frontend" {
   source                = "./modules/frontend"
   allow_storage_cleanup = var.allow_storage_cleanup
   # 인증서만 요청하는 동안에는 아직 없는 API 원본을 CloudFront에 추가하지 않습니다.
-  api_hostname             = var.enable_backend ? var.api_hostname : ""
+  api_hostname             = local.backend_running ? var.api_hostname : ""
   frontend_bucket_name     = var.frontend_bucket_name
   frontend_certificate_arn = local.active_frontend_certificate_arn
   frontend_hostname        = local.active_frontend_hostname
@@ -45,7 +45,7 @@ module "iam" {
 
 module "nat" {
   source              = "./modules/nat"
-  count               = var.enable_backend ? 1 : 0 # ECR 최초 push 전에는 Backend 비용 자원을 만들지 않는 단계 설정
+  count               = local.backend_running ? 1 : 0 # 면접 중단 시 실행 자원만 제거하고 기반 자원은 유지합니다.
   app_route_table_ids = module.vpc.app_route_table_ids
   project             = var.project
   public_subnet_ids   = module.vpc.public_subnet_ids
@@ -54,7 +54,7 @@ module "nat" {
 
 module "alb" {
   source                = "./modules/alb"
-  count                 = var.enable_backend ? 1 : 0 # ECR 최초 push 전에는 Backend 비용 자원을 만들지 않는 단계 설정
+  count                 = local.backend_running ? 1 : 0 # 면접 중단 시 실행 자원만 제거하고 기반 자원은 유지합니다.
   alarm_sns_topic_arns  = var.alarm_sns_topic_arns
   alb_certificate_arn   = local.active_api_certificate_arn
   alb_security_group_id = module.vpc.alb_security_group_id
@@ -68,26 +68,26 @@ module "alb" {
 
 module "rds" {
   source                      = "./modules/rds"
-  count                       = var.enable_backend ? 1 : 0 # ECR 최초 push 전에는 Backend 비용 자원을 만들지 않는 단계 설정
+  count                       = local.backend_running ? 1 : 0 # 면접 중단 시 실행 자원만 제거하고 기반 자원은 유지합니다.
   alarm_sns_topic_arns        = var.alarm_sns_topic_arns
   availability_zone           = var.availability_zones[0]
-  database_disposal           = var.database_disposal
+  database_disposal           = local.effective_database_disposal
   db_instance_class           = var.db_instance_class
   db_name                     = var.db_name
   db_security_group_id        = module.vpc.db_security_group_id
   db_storage_gb               = var.db_storage_gb
   db_subnet_ids               = module.vpc.db_subnet_ids
-  ephemeral_database_ack      = var.ephemeral_database_ack
+  ephemeral_database_ack      = local.effective_database_ack
   final_snapshot_identifier   = var.final_snapshot_identifier
   log_retention_days          = var.log_retention_days
   project                     = var.project
-  restore_snapshot_identifier = var.restore_snapshot_identifier
+  restore_snapshot_identifier = local.backend_running && var.restore_snapshot_identifier != null ? data.aws_db_snapshot.interview_restore[0].id : null
   depends_on                  = [module.iam] # 선택적 RDS service-linked Role 선행 생성
 }
 
 module "ecs" {
   source                = "./modules/ecs"
-  count                 = var.enable_backend ? 1 : 0 # ECR 최초 push 전에는 Backend 비용 자원을 만들지 않는 단계 설정
+  count                 = local.backend_running ? 1 : 0 # 면접 중단 시 실행 자원만 제거하고 기반 자원은 유지합니다.
   alarm_sns_topic_arns  = var.alarm_sns_topic_arns
   app_subnet_ids        = module.vpc.app_subnet_ids
   application_secrets   = var.application_secrets
@@ -117,7 +117,7 @@ module "ecs" {
 # [비용 주의] 수동 승인 후에만 활성화합니다. 새 State 없이 기존 Main에 9번째 모듈로 연결합니다.
 module "aiops" {
   source                 = "./modules/aiops"
-  count                  = var.enable_aiops && var.enable_backend ? 1 : 0
+  count                  = var.enable_aiops && local.backend_running ? 1 : 0
   project                = var.project
   region                 = var.region
   aws_account_id         = var.aws_account_id
