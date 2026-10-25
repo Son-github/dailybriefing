@@ -27,7 +27,7 @@ const base = () =>
   runtime().mode === "LOCAL"
     ? import.meta.env.VITE_API_BASE || runtime().apiBase
     : runtime().apiBase;
-let csrf: string | null = null;
+let csrfPromise: Promise<string> | null = null;
 let sessionGeneration = 0;
 let refreshPromise: Promise<boolean> | null = null;
 export class ApiError extends Error {
@@ -42,11 +42,15 @@ export class ApiError extends Error {
   }
 }
 async function csrfToken() {
-  if (!csrf) {
+  // CSRF 쿠키는 다른 탭/요청에서도 변경됩니다. 이전 값을 세션 내내 재사용하지 않고
+  // 변경 요청 직전에 서버와 맞춥니다. 동시에 시작한 요청만 조회 하나를 공유합니다.
+  if (csrfPromise) return csrfPromise;
+  csrfPromise = (async () => {
     let res: Response;
     try {
       res = await fetch(`${base()}/auth/csrf`, {
         credentials: "include",
+        cache: "no-store",
         signal: AbortSignal.timeout(15000),
       });
     } catch (error) {
@@ -64,9 +68,16 @@ async function csrfToken() {
         "SECURITY",
         "보안 연결을 준비하지 못했어요.",
       );
-    csrf = ((await res.json()) as { token: string }).token;
+    const data = (await res.json()) as { token?: string };
+    if (typeof data.token !== "string" || !data.token)
+      throw new ApiError(502, "SECURITY", "보안 토큰을 확인하지 못했어요.");
+    return data.token;
+  })();
+  try {
+    return await csrfPromise;
+  } finally {
+    csrfPromise = null;
   }
-  return csrf;
 }
 export async function refresh(): Promise<boolean> {
   if (isStaticDemo() || backendUnavailable()) {

@@ -15,6 +15,7 @@ export function MyPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [deleting, setDeleting] = useState(false);
   if (!user)
     return (
@@ -123,7 +124,9 @@ export function MyPage() {
         </div>
         <Button
           variant="secondary"
+          disabled={busy || loggingOut}
           onClick={async () => {
+            setLoggingOut(true);
             try {
               await logout();
               navigate("/");
@@ -134,10 +137,12 @@ export function MyPage() {
               );
               setError(true);
               setMessage((e as Error).message);
+            } finally {
+              setLoggingOut(false);
             }
           }}
         >
-          로그아웃
+          {loggingOut ? "로그아웃 중…" : "로그아웃"}
         </Button>
       </div>
       <Notice message={message} error={error} />

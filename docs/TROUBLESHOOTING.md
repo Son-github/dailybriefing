@@ -71,3 +71,12 @@ LIVE 복구는 수동 실행 전용 `runtime-config` Actions로 진행합니다.
 복구 workflow 코드를 push하는 과정에서 기존 main 자동 배포가 실행될 수 있습니다. 서버 재배포를 원치 않으면 사용자가 Repository AWS_DEPLOY_ENABLED=false로 잠시 두고 코드 반영 후 자동 배포가 Skipped인지 확인합니다. 이후 true로 되돌리고 Actions → runtime-config → Run workflow → main/LIVE를 직접 실행합니다. 기존 서버는 이 스위치 변경으로 중지되지 않습니다.
 
 공개 config에서 LIVE/liveEnabled=true가 확인되면 페이지의 LIVE 다시 연결 버튼으로 브라우저에 남은 샘플 체험 선택도 해제합니다. 실제 AWS 변경은 사용자가 Actions를 실행할 때 발생하며, 코드 수정만으로 복구 완료를 주장하지 않습니다.
+
+
+## 로그아웃 FORBIDDEN (403)
+
+로그아웃 API는 로그인 권한 검사를 요구하지 않지만 CSRF 검사는 유지합니다. 이전 frontend는 CSRF 응답 토큰을 메모리에 계속 캐시하여, 다른 탭/요청에서 공유 Cookie가 변경된 뒤 오래된 헤더 토큰으로 로그아웃을 요청할 수 있었습니다. 이 조건에서 403이 나는 상황을 Mock HTTP 테스트로 재현했습니다. 실제 요청의 최종 원인 확정에는 요청 번호에 대응하는 서버 로그 확인이 필요합니다.
+
+변경 요청 직전에 /auth/csrf를 cache:no-store/credentials:include로 확인하고, 동시에 시작한 조회만 Promise 하나를 공유하도록 수정했습니다. 세션 내내 토큰을 재사용하지 않습니다. CSRF 검사는 끄지 않고, 서버 실패 시 가짜 로그아웃 성공으로 처리하지 않습니다. 성공 응답 후에만 메모리 인증과 개인 Query 캐시를 비웁니다. My Page 버튼에는 진행 중 표시와 중복 클릭 방지를 적용합니다.
+
+frontend-deploy 반영 후 페이지를 새로고침하여 기존 메모리 캐시를 제거하고 로그인 → 로그아웃 → 새로고침 → 비로그인 유지 → 재로그인을 확인합니다. 이 수정에는 Backend 재배포나 Terraform apply가 필요하지 않습니다. 여전히 실패하면 새 요청 번호와 서버 로그의 403 원인을 확인합니다. 테스트는 토큰 변경 후 로그아웃 성공과 실제 서버 거절 시 오류 유지 두 흐름을 포함합니다.
