@@ -8,6 +8,12 @@ import { ApiError } from "../lib/api";
 import { currentLocation } from "../features/transit/location";
 import { DatePicker } from "../components/ui/DateTimePicker";
 beforeEach(() => useErrorDialog.getState().close());
+it("지도 SDK 오류는 도메인과 JavaScript 키 확인을 안내한다", () => {
+  const guide = errorGuide({ code: "MAP_SDK_LOAD_FAILED" });
+  expect(guide.title).toContain("카카오 지도");
+  expect(guide.steps.join()).toContain("www");
+  expect(guide.steps.join()).toContain("JavaScript 키");
+});
 it("원인별 해결 방법과 비재시도 설정을 구분한다", () => {
   expect(
     errorGuide(new ApiError(503, "PROVIDER_NOT_CONFIGURED", "secret")),

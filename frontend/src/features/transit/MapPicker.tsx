@@ -40,11 +40,58 @@ declare global {
   }
 }
 let sdk: Promise<Maps> | null = null;
-function loadMap(): Promise<Maps> {
-  if (window.kakao?.maps)
-    return new Promise((resolve) =>
-      window.kakao!.maps.load(() => resolve(window.kakao!.maps)),
+function waitForMap(maps: Maps): Promise<Maps> {
+  // SDK 전역 객체가 있어도 지도 엔진은 아직 로드되지 않았을 수 있습니다.
+  // 새로 열기/재시도에서도 항상 제한 시간을 두고 CSP 차단을 별도로 안내합니다.
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => {
+      clearTimeout(timeout);
+      document.removeEventListener("securitypolicyviolation", blocked);
+    };
+    const fail = (error: ApiError) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const blocked = (event: SecurityPolicyViolationEvent) => {
+      if (
+        event.effectiveDirective.startsWith("script-src") &&
+        /^https:\/\/t1\.kakaocdn\.net(?:\/|$)/.test(event.blockedURI)
+      )
+        fail(
+          new ApiError(
+            0,
+            "MAP_SDK_BLOCKED",
+            "사이트 보안 설정이 지도 파일을 차단했어요.",
+          ),
+        );
+    };
+    const timeout = window.setTimeout(
+      () =>
+        fail(
+          new ApiError(0, "MAP_SDK_TIMEOUT", "지도 초기화가 완료되지 않았어요."),
+        ),
+      10000,
     );
+    document.addEventListener("securitypolicyviolation", blocked);
+    try {
+      maps.load(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(maps);
+      });
+    } catch {
+      fail(
+        new ApiError(0, "MAP_SDK_LOAD_FAILED", "카카오 지도 초기화에 실패했어요."),
+      );
+    }
+  });
+}
+function loadMap(): Promise<Maps> {
+  if (window.kakao?.maps) return waitForMap(window.kakao.maps);
   const key =
     runtime().kakaoMapKey ||
     (runtime().mode === "LOCAL" ? import.meta.env.VITE_KAKAO_MAP_KEY : "");
@@ -74,16 +121,26 @@ function loadMap(): Promise<Maps> {
         );
         return;
       }
-      window.kakao.maps.load(() => {
-        clearTimeout(timeout);
-        resolve(window.kakao!.maps);
+      clearTimeout(timeout);
+      void waitForMap(window.kakao.maps).then(resolve, (error: ApiError) => {
+        script.remove();
+        sdk = null;
+        reject(error);
       });
     };
     script.onerror = () => {
       clearTimeout(timeout);
       script.remove();
       sdk = null;
-      reject(new ApiError(0, "NETWORK", "지도를 불러오지 못했어요."));
+      // script.onerror는 공급자의 HTTP 상태/본문을 노출하지 않습니다.
+      // 도메인 거절도 같은 이벤트이므로 일반 Backend NETWORK 오류와 구분합니다.
+      reject(
+        new ApiError(
+          0,
+          "MAP_SDK_LOAD_FAILED",
+          "카카오 지도 SDK를 불러오지 못했어요. 지도 키와 현재 사이트의 도메인 등록을 확인해 주세요.",
+        ),
+      );
     };
     document.head.append(script);
   });

@@ -92,6 +92,30 @@ function baseErrorGuide(error: Failure): ErrorGuide {
       ],
       retryable: true,
     };
+  if (code === "MAP_SDK_BLOCKED" || code === "MAP_SDK_TIMEOUT")
+    return {
+      title:
+        code === "MAP_SDK_BLOCKED"
+          ? "사이트 보안 설정이 지도를 차단했어요"
+          : "지도 준비 시간이 초과됐어요",
+      cause: "지도 SDK의 추가 파일이 차단되었거나 초기화가 완료되지 않았어요.",
+      steps: [
+        "관리자는 사이트의 Content-Security-Policy에서 https://t1.kakaocdn.net 지도 스크립트가 허용됐는지 확인해 주세요.",
+        "설정 반영 후 페이지를 새로고침해 주세요. 계속되면 인터넷 연결과 콘텐츠 차단 확장 기능을 확인해 주세요.",
+      ],
+      retryable: true,
+    };
+  if (code === "MAP_SDK_LOAD_FAILED")
+    return {
+      title: "카카오 지도를 연결하지 못했어요",
+      cause:
+        "지도 서비스의 키·허용 도메인 설정 또는 브라우저의 네트워크 차단을 확인해야 해요.",
+      steps: [
+        "관리자는 사용 중인 JavaScript 키의 SDK 도메인에 현재 사이트 주소가 등록됐는지 확인해 주세요. www 포함 여부와 https도 일치해야 해요.",
+        "카카오맵 사용 설정과 JavaScript 키 종류를 확인해 주세요. 설정이 정상이라면 인터넷 연결과 콘텐츠 차단 확장 기능을 확인해 주세요.",
+      ],
+      retryable: true,
+    };
   if (code === "NETWORK" || code === "OFFLINE")
     return {
       title: "서비스에 연결하지 못했어요",
