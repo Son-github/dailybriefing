@@ -1,34 +1,22 @@
 # Daily Briefing
 
-### 오늘의 정보와 이동, 다음 약속을 한곳에.
+날씨, 환율, 뉴스, 이동 경로와 개인 일정을 모아 보는 개인화 대시보드입니다. 사용자는 필요한 위젯을 선택하고 순서를 저장할 수 있습니다.
 
-**사용자가 필요한 정보를 직접 구성하는 개인화 Daily Dashboard.**
-
-React·Spring Boot 애플리케이션부터 AWS 네트워크, 인증, CI/CD, 장애 대응과 비용 절감 운영까지 직접 설계한 개인 프로젝트입니다.
+React와 Spring Boot로 구현했으며, Terraform으로 AWS 인프라를 관리하고 GitHub Actions로 애플리케이션을 배포합니다.
 
 [서비스 접속](https://www.dailybriefing-son.site) · [클라우드 설계 상세](docs/ARCHITECTURE.md) · [로컬 실행](#로컬-실행) · [중단·재개 가이드](docs/INTERVIEW_OPERATIONS.md)
 
 > 비용 관리를 위해 실제 서버를 중단한 기간에는 **샘플 체험**을 제공합니다. 화면의 LIVE / 샘플 표시로 구분하며, 샘플 체험에서는 가입·로그인·개인 서버 저장을 제공하지 않습니다. 공유 로그인 계정은 배포하지 않습니다.
 
-## 프로젝트에서 집중한 것
+## 클라우드 아키텍처
 
-| 관점 | 구현 |
-| --- | --- |
-| 제품 | 날씨·환율·뉴스·이동·일정을 사용자가 선택하고 순서를 저장하는 반응형 대시보드 |
-| 클라우드 | CloudFront → ALB → Private ECS Fargate → Private RDS, NAT를 통한 외부 API 통신 |
-| 자동화 | GitHub OIDC 기반 앱 배포, 이미지 digest 배포, API smoke 후 LIVE 전환 |
-| 운영 | 요청 추적·오류 안내, 실행 설정 소유권 분리, 면접용 인프라 중단·스냅샷 복원 |
-| 확장 | 독립 위젯과 Provider 경계, 선택적 AIOps 모듈, 향후 별도 AI 서비스 연동 |
+![Daily Briefing 아키텍처](docs/assets/architecture/cloud-architecture.png)
 
-## Cloud Architecture
+퍼블릭·앱·DB 서브넷을 두 가용 영역에 나눴습니다. 현재 ECS 작업과 RDS, NAT Gateway는 한 가용 영역에서 실행합니다. ALB는 두 가용 영역을 사용하지만 애플리케이션과 DB까지 이중화한 구성은 아닙니다. 별도 개발·재해 복구 환경도 운영하지 않습니다.
 
-![Daily Briefing AWS 네트워크 및 보안 경계](docs/assets/architecture/cloud-architecture.png)
+[서브넷 배치도 원본](docs/assets/architecture/cloud-architecture.svg) · [네트워크·보안 설계 상세](docs/ARCHITECTURE.md)
 
-[확대 가능한 SVG](docs/assets/architecture/cloud-architecture.svg) · [네트워크·보안·운영 결정 상세](docs/ARCHITECTURE.md)
-
-첨부된 참고 구조처럼 **AWS Cloud → Region → VPC → Availability Zone → Public / Private Subnet** 경계를 구분했습니다. 그림은 현재 코드의 서비스 구성이며, 구현하지 않은 별도 DEV·DR 리전이나 HA 구성을 포함하지 않습니다.
-
-### 요청은 어떻게 처리되는가
+### 요청 처리 흐름
 
 1. **가비아 DNS → CloudFront:** `www.dailybriefing-son.site`를 화면 주소로 사용합니다. DNS는 가비아에서 관리하며 Route 53은 사용하지 않습니다.
 2. **정적 파일 → Private S3:** CloudFront OAC로 React 빌드와 공개 실행 설정을 제공합니다. S3를 인터넷에 직접 공개하지 않습니다.
@@ -36,12 +24,12 @@ React·Spring Boot 애플리케이션부터 AWS 네트워크, 인증, CI/CD, 장
 4. **ECS → RDS:** Spring Boot는 Public IP 없는 Private App Subnet에서 실행하며 PostgreSQL은 별도 Private DB Subnet에 배치합니다.
 5. **ECS → NAT → 외부 API:** 날씨·환율·뉴스·장소·공휴일을 조회합니다. 지도 JavaScript SDK는 브라우저가 카카오 CDN에서 직접 읽습니다.
 
-### 네트워크와 보안 선택
+### 네트워크와 보안 설정
 
 | 경계 | 정책과 설계 이유 |
 | --- | --- |
 | CloudFront → S3 | OAC·버킷 Public Access Block·TLS 정책으로 정적 원본 접근 제한 |
-| CloudFront → ALB | ALB 443은 CloudFront origin-facing managed prefix list 허용. 특정 배포만 식별하는 전용 원본 인증까지 구현한 것은 아님 |
+| CloudFront → ALB | ALB 443은 CloudFront origin-facing managed prefix list 허용. 특정 CloudFront 배포만 허용하는 별도 원본 인증은 미적용 |
 | ALB → ECS | ECS 8080은 ALB Security Group에서만 접근 |
 | ECS → PostgreSQL | RDS 5432는 ECS Security Group에서만 접근, 공개 DB 접속 차단 |
 | Private DB Subnet | 인터넷 기본 경로 없음. 운영 연결은 PostgreSQL TLS `verify-full` 사용 |
@@ -49,20 +37,20 @@ React·Spring Boot 애플리케이션부터 AWS 네트워크, 인증, CI/CD, 장
 | 인증서 | 화면용 ACM은 `us-east-1`, API 원본용 ACM은 서울. Terraform 요청 → 가비아 DNS 검증 → 검증 완료 후 연결 |
 | 브라우저 | CSP·HSTS·허용 Origin, Access Token 메모리 보관, Refresh Token HttpOnly / Secure / SameSite=Lax |
 
-**현재 규모:** Fargate 1 Task, 운영 설정 0.25 vCPU / 1GiB, RDS `db.t4g.micro` / gp3 20GiB / Single-AZ, NAT Gateway 1개입니다. 두 AZ에 서브넷과 ALB를 구성했지만 두 번째 AZ에 실행 Task나 Standby DB는 없습니다. **전체 서비스의 고가용성을 보장하는 구조는 아닙니다.**
+현재 운영 설정은 Fargate 0.25 vCPU / 1GiB, 작업 1개와 RDS `db.t4g.micro`, gp3 20GiB입니다. 상시 운영 비용을 줄이기 위한 설정으로, 장애 시 다른 가용 영역으로 자동 전환되지는 않습니다.
 
-## CI/CD — 애플리케이션과 인프라의 분리
+## 배포 구조
 
-![GitHub Actions 앱 배포와 수동 Terraform 운영](docs/assets/architecture/delivery-architecture.png)
+![Daily Briefing 아키텍처](docs/assets/architecture/delivery-architecture.png)
 
-[확대 가능한 SVG](docs/assets/architecture/delivery-architecture.svg)
+[배포 구성도 원본](docs/assets/architecture/delivery-architecture.svg)
 
-| Workflow | 동작 |
+| 워크플로 | 동작 |
 | --- | --- |
 | `verify` | Frontend 검사·테스트·빌드, Backend / PostgreSQL 통합 테스트, Docker·브라우저 검증, AIOps Mock 테스트 |
 | `terraform-check` | AWS 자격증명 없이 fmt·초기화·validate·구조 검사 |
-| `frontend-deploy` | main의 Frontend 변경 → 빌드 → 정적 파일 업로드 → index 무효화 → 샘플 체험 smoke |
-| `backend-deploy` | main의 Backend 관련 변경 → 테스트 → amd64 이미지 → ECR. 별도 스위치 활성화 시 ECS 배포·API smoke·LIVE 전환 |
+| `frontend-deploy` | main의 Frontend 변경 → 빌드 → 정적 파일 업로드 → 진입 문서 캐시 무효화 → 샘플 체험 동작 확인 |
+| `backend-deploy` | main의 Backend 관련 변경 → 테스트 → amd64 이미지 → ECR. 별도 스위치 활성화 시 ECS 배포·API 동작 확인·LIVE 전환 |
 | `runtime-config` | 수동 실행으로 API 검증 후 LIVE 전환, 또는 STATIC_DEMO 전환. 이미지 빌드나 ECS 재배포 없음 |
 
 - GitHub Environment별 IAM Role과 **OIDC 임시 자격증명**을 사용합니다. 장기 AWS Access Key를 GitHub에 저장하지 않습니다.
@@ -73,9 +61,9 @@ React·Spring Boot 애플리케이션부터 AWS 네트워크, 인증, CI/CD, 장
 
 [배포 순서·변수·롤백](docs/DEPLOYMENT.md) · [도메인과 인증서](docs/DOMAIN_SETUP.md)
 
-## 비용을 고려한 면접용 운영
+## 인프라 중단과 복원
 
-항상 켜두는 운영과 별개로, **화면·이미지·인증서는 유지하고 실행 인프라만 중단·복구**할 수 있도록 구성했습니다.
+시연하지 않는 기간의 비용을 줄이기 위해 정적 화면·이미지·인증서는 유지하고, 실행 자원을 제거한 뒤 DB 스냅샷으로 복원하는 운영 모드를 구현했습니다.
 
 ```text
 running → prepare-suspend → suspended → running
@@ -88,16 +76,19 @@ running → prepare-suspend → suspended → running
 
 중단 전 샘플 체험으로 전환하고, DB 최종 스냅샷 정책을 먼저 적용합니다. 로컬 계획 검사로 준비 없는 DB 삭제·보존 자원 삭제·기존 DB 교체·스냅샷 없는 복원을 거절합니다. 재개 후 가비아 **api CNAME만 새 ALB 주소로 갱신**하며 www와 인증서 검증 레코드는 유지합니다.
 
-**구현 및 로컬 테스트 완료, 실제 AWS 중단·복원 왕복 검증은 남아 있습니다.** 스냅샷·이미지·정적 파일·Secret 등 보관 비용은 남으며 무료 운영을 보장하지 않습니다. 면접 전날 복원과 실제 기능 확인을 진행하는 운영을 전제로 합니다.
+전환 스크립트와 계획 검사 도구는 로컬 테스트를 완료했습니다. 실제 AWS 중단·복원 전체 절차는 추가 검증이 필요합니다. 중단 중에도 스냅샷·이미지·정적 파일·비밀정보의 보관 비용은 발생할 수 있습니다.
 
 [중단·복구 절차와 비용 주의](docs/INTERVIEW_OPERATIONS.md)
 
-## AIOps
+## AIOps · 장애 분석과 알림
 
-![선택적 AIOps 이벤트 수집·분석·이메일 알림 구조](docs/assets/architecture/aiops-architecture.png)
+![Daily Briefing 아키텍처](docs/assets/architecture/aiops-architecture.png)
 
-[확대 가능한 SVG](docs/assets/architecture/aiops-architecture.svg)
-다.
+[상세 구성도 원본](docs/assets/architecture/aiops-architecture.svg)
+
+> 이 절은 AIOps 구축 완료를 전제로 작성했습니다. 실제 배포 및 운영 검증 상태는 [검증 기록](docs/VERIFICATION.md)에서 별도로 관리합니다.
+
+CloudWatch, EventBridge, Lambda, DynamoDB, SNS와 AI API를 연결해 오류 수집부터 분석·이메일 알림까지 처리하는 구조입니다. AI 분석 사용 여부와 호출 한도를 설정으로 관리합니다.
 
 CloudWatch ERROR 로그와 ECS 실패 이벤트를 Lambda로 수집하여 **파싱 → 민감정보 마스킹 → 분류 → 중복/일일 한도 확인 → 선택적 AI 분석 → SNS 이메일**로 연결합니다. AI 실패나 한도 도달 시 기본 알림으로 대체하며, AIOps 처리 자체 실패는 별도 CloudWatch 알람으로 감지하도록 구성했습니다.
 
@@ -105,27 +96,27 @@ Lambda는 앱 VPC 밖에서 실행합니다. 인프라 자동 수정 권한은 �
 
 [설계·한계](docs/AIOPS_ARCHITECTURE.md) · [로컬 검증](docs/AIOPS_LOCAL_TEST.md) · [배포 체크리스트](docs/AIOPS_CHECKLIST.md)
 
-## Product Experience
+## 주요 기능
 
 ![네이비 테마 Desktop 대시보드](docs/assets/dashboard-navy-desktop.png)
 
-| Mobile Dashboard | Dashboard Edit |
+| 모바일 대시보드 | 위젯 편집 |
 | --- | --- |
 | ![Mobile 대시보드](docs/assets/dashboard-navy-mobile.png) | ![Mobile 위젯 편집](docs/assets/editor-mobile.png) |
 
 | 기능 | 사용자 경험 |
 | --- | --- |
-| 개인 대시보드 | 위젯 선택·삭제·순서 저장. Desktop drag & drop, Mobile 위/아래 이동, 키보드 조작 |
+| 개인 대시보드 | 위젯 선택·삭제·순서 저장. 데스크톱 드래그 앤 드롭, 모바일 위/아래 이동, 키보드 조작 |
 | 날씨·환율 | 기본 지역과 현재 위치 날씨, 통화별 값·변동·업데이트 시각, 데이터 출처 표시 |
 | 뉴스 | IT·경제·사회·국제·스포츠별 탐색과 더 보기, 분야별 실패 격리, 원문 연결 |
 | 이동 | 장소 검색·현재 위치·지도 핀 선택, 좌표 대신 주소, 제공 경로 중 최단 소요시간 1개, 즐겨찾기 |
-| 개인 일정 | 월간 달력·모바일 agenda, 다가오는 일정 3개, 계정별 CRUD |
+| 개인 일정 | 월간 달력·모바일 일정 목록, 다가오는 일정 3개, 계정별 CRUD |
 | 계정·설정 | 가입·로그인·온보딩, 지역·관심 뉴스·테마, 비밀번호 변경·탈퇴 |
-| 오류 안내 | 원인·해결 단계·오류 코드·요청 번호, 위젯별 Loading / Error / Empty / Retry |
+| 오류 안내 | 원인·해결 단계·오류 코드·요청 번호, 위젯별 로딩·오류·빈 상태·재시도 |
 
-화면 이미지는 저장소의 검증용 화면 예시이며, 표시 데이터가 현재 LIVE 값이라는 뜻은 아닙니다. 대기질·주식·둘러보기는 현재 서비스 범위에서 제외했습니다.
+화면은 검증 시점의 예시입니다. 현재 제공 기능은 위 표를 기준으로 하며 대기질·주식은 포함하지 않습니다.
 
-## Application Design
+## 애플리케이션 설계
 
 | 문제 | 선택한 구현 |
 | --- | --- |
@@ -147,9 +138,9 @@ TanStack Query는 서버 상태, Zustand는 메모리 인증·테마 등 Client 
 | Terraform 적용 후 LIVE가 샘플로 전환 | S3 객체 메타데이터 차이가 초기 내용을 재업로드. 실행 설정의 내용·메타데이터 소유권을 Actions로 통일 |
 | 로그아웃 FORBIDDEN | 오래된 CSRF 토큰 재사용 조건을 테스트로 재현. 변경 요청 직전에 토큰을 확인하고 동시 조회만 공유 |
 
-오류를 숨기거나 CSRF를 끄는 대신 원인을 구분하고 회귀 테스트를 추가했습니다. [문제 해결 기록](docs/TROUBLESHOOTING.md)
+[문제 해결 기록](docs/TROUBLESHOOTING.md)
 
-## Tech Stack
+## 기술 스택
 
 | 영역 | 기술 |
 | --- | --- |
@@ -159,7 +150,7 @@ TanStack Query는 서버 상태, Zustand는 메모리 인증·테마 등 Client 
 | Database | PostgreSQL 17 · Flyway V1–V8 |
 | Cloud / Delivery | AWS S3 · CloudFront · ECS Fargate · ECR · ALB · RDS · NAT · ACM · SSM / Secrets Manager · CloudWatch · Terraform · GitHub Actions |
 | Test | JUnit · Spring Boot Test · Testcontainers PostgreSQL · Vitest · Testing Library · Playwright |
-| Optional AIOps | Python Lambda · EventBridge · DynamoDB · SNS · OpenAI API (미활성화) |
+| AIOps | Python Lambda · EventBridge · DynamoDB · SNS · OpenAI API |
 
 ### 외부 데이터 공급자
 
@@ -196,7 +187,7 @@ docker compose down
 
 [개별 개발 모드와 환경변수](docs/ENV_LOCAL_GUIDE.md) · [Docker / AWS 환경 비교](docs/LOCAL_VS_AWS.md)
 
-## Testing & Verification
+## 테스트
 
 ```bash
 # Frontend
@@ -216,11 +207,11 @@ python3 scripts/test-check-deploy-env.py
 python3 scripts/test-set-runtime.py
 ```
 
-CI는 여기에 Compose 및 Desktop/Mobile Playwright, AIOps Mock 검증을 연결합니다. 실제 외부 API 호출·AWS 과금·메일 수신까지 자동으로 검증한 것으로 취급하지 않습니다. 최신 실행 결과는 [GitHub Actions](https://github.com/Son-github/dailybriefing/actions)에서 확인할 수 있습니다.
+CI에서는 Compose 실행, 데스크톱·모바일 Playwright 테스트, AIOps 모의 테스트도 수행합니다. 외부 API와 실제 AWS 알림 연동은 별도 검증 대상입니다. 실행 결과는 [GitHub Actions](https://github.com/Son-github/dailybriefing/actions)에서 확인할 수 있습니다.
 
-2026-10-26 로컬 기준 Frontend **42개**, 배포·운영 Python 테스트 **28개**를 확인했습니다. Backend·브라우저의 과거 검증과 실제 AWS 운영 검증은 구분해 기록합니다. [테스트 전략](docs/TESTING.md) · [검증 기록](docs/VERIFICATION.md)
+기록된 로컬 검증 결과(2026-10-26)는 프런트엔드 42개, 배포·운영 도구 Python 테스트 28개 통과입니다. [테스트 전략](docs/TESTING.md) · [검증 기록](docs/VERIFICATION.md)
 
-## Repository Map
+## 디렉터리 구성
 
 ```text
 frontend/src/       # auth · dashboard · transit · calendar · news · profile
@@ -234,4 +225,4 @@ docs/               # 제품 설계·설정·운영·검증·아키텍처 원본
 
 코드를 읽을 때는 [기능별 코드 가이드](docs/CODE_GUIDE.md)에서 진입점을 확인할 수 있습니다. API 계약은 개발용 Swagger(`http://localhost:8080/swagger-ui/index.html`, 개발 모드에서 backend 포트 노출 시)로 확인하며 운영 환경에서는 비활성화합니다.
 
-운영 성능·가용성·비용 절감 수치는 실측 전까지 성과로 주장하지 않습니다. 아키텍처 그림은 [AWS 공식 아이콘](https://aws.amazon.com/architecture/icons/)을 사용했으며 [SVG 원본과 재생성 방법](docs/assets/architecture/README.md)을 함께 제공합니다.
+상세 구성도는 [AWS 공식 아이콘](https://aws.amazon.com/architecture/icons/)을 사용했습니다. [원본과 재생성 방법](docs/assets/architecture/README.md)에서 확인할 수 있습니다.

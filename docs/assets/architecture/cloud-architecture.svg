@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1800" height="1160" viewBox="0 0 1800 1160" role="img" aria-labelledby="title desc">
-<title id="title">Daily Briefing | Cloud architecture</title><desc id="desc">Implemented service topology · Seoul region · Single task / Single-AZ database · Route 53 is not used</desc>
+<title id="title">Daily Briefing | 클라우드 아키텍처</title><desc id="desc">서울 리전 · ECS 작업 1개 · 단일 가용 영역 DB · 가비아 DNS 사용</desc>
 <defs><marker id="arrow-blue" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9Z" fill="#3478c7"/></marker><marker id="arrow-green" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9Z" fill="#348354"/></marker><marker id="arrow-purple" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9Z" fill="#7653ad"/></marker></defs>
 <rect width="1800" height="1160" fill="#fff"/>
-<style>text{font-family:Arial,"Noto Sans",sans-serif} .label{paint-order:stroke;stroke:#fff;stroke-width:7px;stroke-linejoin:round}</style>
-<text x="42" y="48" font-size="30" fill="#152b45" font-weight="700" text-anchor="start">Daily Briefing | Cloud architecture</text>
-<text x="42" y="80" font-size="17" fill="#60738b" font-weight="400" text-anchor="start">Implemented service topology · Seoul region · Single task / Single-AZ database · Route 53 is not used</text>
+<style>text{font-family:"Apple SD Gothic Neo","Noto Sans CJK KR",Arial,sans-serif} .label{paint-order:stroke;stroke:#fff;stroke-width:7px;stroke-linejoin:round}</style>
+<text x="42" y="48" font-size="30" fill="#152b45" font-weight="700" text-anchor="start">Daily Briefing | 클라우드 아키텍처</text>
+<text x="42" y="80" font-size="17" fill="#60738b" font-weight="400" text-anchor="start">서울 리전 · ECS 작업 1개 · 단일 가용 영역 DB · 가비아 DNS 사용</text>
 <defs><symbol id="icon-acm" viewBox="0 0 80 80">
     <title>Icon-Architecture/64/Arch_AWS-Certificate-Manager_64</title>
     <g id="acm-Icon-Architecture/64/Arch_AWS-Certificate-Manager_64" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
@@ -161,34 +161,34 @@
     </g>
 </symbol></defs>
 <rect x="250" y="120" width="1505" height="925" rx="16" fill="#fcfdff" stroke="#152b45" stroke-width="2"/>
-<text x="268" y="150" font-size="19" fill="#152b45" font-weight="700" text-anchor="start">AWS Cloud</text>
+<text x="268" y="150" font-size="19" fill="#152b45" font-weight="700" text-anchor="start">AWS 클라우드</text>
 <rect x="570" y="158" width="1145" height="865" rx="16" fill="#f8fbff" stroke="#3478c7" stroke-width="2" stroke-dasharray="7 6"/>
-<text x="588" y="188" font-size="19" fill="#3478c7" font-weight="700" text-anchor="start">Asia Pacific (Seoul) · ap-northeast-2</text>
+<text x="588" y="188" font-size="19" fill="#3478c7" font-weight="700" text-anchor="start">아시아 태평양(서울) · ap-northeast-2</text>
 <rect x="600" y="325" width="1085" height="530" rx="16" fill="#fff" stroke="#7653ad" stroke-width="2"/>
 <text x="618" y="355" font-size="19" fill="#7653ad" font-weight="700" text-anchor="start">Amazon VPC · 10.20.0.0/16</text>
 <rect x="625" y="382" width="500" height="450" rx="16" fill="#fff" stroke="#60738b" stroke-width="2" stroke-dasharray="7 6"/>
-<text x="643" y="412" font-size="19" fill="#60738b" font-weight="700" text-anchor="start">Availability Zone A · ap-northeast-2a</text>
+<text x="643" y="412" font-size="19" fill="#60738b" font-weight="700" text-anchor="start">가용 영역 A · ap-northeast-2a</text>
 <rect x="1145" y="382" width="515" height="450" rx="16" fill="#fff" stroke="#60738b" stroke-width="2" stroke-dasharray="7 6"/>
-<text x="1163" y="412" font-size="19" fill="#60738b" font-weight="700" text-anchor="start">Availability Zone C · ap-northeast-2c</text>
+<text x="1163" y="412" font-size="19" fill="#60738b" font-weight="700" text-anchor="start">가용 영역 C · ap-northeast-2c</text>
 <rect x="640" y="430" width="470" height="130" rx="8" fill="#f1f9ef" stroke="#d8e2eb" stroke-width="1.5"/>
-<text x="652" y="452" font-size="15" fill="#348354" font-weight="700" text-anchor="start">Public subnet · 10.20.1.0/24</text>
+<text x="652" y="452" font-size="15" fill="#348354" font-weight="700" text-anchor="start">퍼블릭 서브넷 · 10.20.1.0/24</text>
 <rect x="640" y="580" width="470" height="110" rx="8" fill="#edf5fe" stroke="#d8e2eb" stroke-width="1.5"/>
-<text x="652" y="602" font-size="15" fill="#3478c7" font-weight="700" text-anchor="start">Private app subnet · 10.20.11.0/24</text>
+<text x="652" y="602" font-size="15" fill="#3478c7" font-weight="700" text-anchor="start">앱 전용 프라이빗 서브넷 · 10.20.11.0/24</text>
 <rect x="640" y="710" width="470" height="105" rx="8" fill="#f3f2fc" stroke="#d8e2eb" stroke-width="1.5"/>
-<text x="652" y="732" font-size="15" fill="#7653ad" font-weight="700" text-anchor="start">Private DB subnet · 10.20.21.0/24</text>
+<text x="652" y="732" font-size="15" fill="#7653ad" font-weight="700" text-anchor="start">DB 전용 프라이빗 서브넷 · 10.20.21.0/24</text>
 <rect x="1160" y="430" width="485" height="130" rx="8" fill="#f1f9ef" stroke="#d8e2eb" stroke-width="1.5"/>
-<text x="1172" y="452" font-size="15" fill="#348354" font-weight="700" text-anchor="start">Public subnet · 10.20.2.0/24</text>
+<text x="1172" y="452" font-size="15" fill="#348354" font-weight="700" text-anchor="start">퍼블릭 서브넷 · 10.20.2.0/24</text>
 <rect x="1160" y="580" width="485" height="110" rx="8" fill="#edf5fe" stroke="#d8e2eb" stroke-width="1.5"/>
-<text x="1172" y="602" font-size="15" fill="#3478c7" font-weight="700" text-anchor="start">Private app subnet · 10.20.12.0/24</text>
+<text x="1172" y="602" font-size="15" fill="#3478c7" font-weight="700" text-anchor="start">앱 전용 프라이빗 서브넷 · 10.20.12.0/24</text>
 <rect x="1160" y="710" width="485" height="105" rx="8" fill="#f3f2fc" stroke="#d8e2eb" stroke-width="1.5"/>
-<text x="1172" y="732" font-size="15" fill="#7653ad" font-weight="700" text-anchor="start">Private DB subnet · 10.20.22.0/24</text>
+<text x="1172" y="732" font-size="15" fill="#7653ad" font-weight="700" text-anchor="start">DB 전용 프라이빗 서브넷 · 10.20.22.0/24</text>
 <path d="M210 357 H300" fill="none" stroke="#3478c7" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
 <text x="215" y="340" font-size="14" fill="#3478c7" font-weight="400" text-anchor="start" class="label">HTTPS</text>
 <path d="M510 330 H548 V250 H600" fill="none" stroke="#3478c7" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
-<text x="550" y="307" font-size="14" fill="#3478c7" font-weight="400" text-anchor="start" class="label">Static + OAC</text>
+<text x="550" y="307" font-size="14" fill="#3478c7" font-weight="400" text-anchor="start" class="label">정적 파일 · OAC</text>
 <path d="M510 377 H555 V368 H1135 V446 H1050 V458" fill="none" stroke="#3478c7" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
 <text x="300" y="460" font-size="17" fill="#3478c7" font-weight="400" text-anchor="start">/api/* → ALB</text>
-<text x="300" y="486" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">HTTPS · caching disabled</text>
+<text x="300" y="486" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">HTTPS · 캐시 제외</text>
 <path d="M1050 545 H1060 V645 H1020" fill="none" stroke="#3478c7" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
 <text x="1035" y="569" font-size="14" fill="#3478c7" font-weight="400" text-anchor="start" class="label">HTTP :8080</text>
 <path d="M850 675 V701 H1085 V780 H1020" fill="none" stroke="#3478c7" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
@@ -196,48 +196,48 @@
 <path d="M660 645 H645 V568 H710 V546" fill="none" stroke="#348354" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#arrow-green)"/>
 <path d="M650 509 H610" fill="none" stroke="#348354" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#arrow-green)"/>
 <path d="M575 509 H270 V745 H220" fill="none" stroke="#348354" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#arrow-green)"/>
-<text x="280" y="531" font-size="15" fill="#348354" font-weight="400" text-anchor="start" class="label">HTTPS egress via NAT</text>
+<text x="280" y="531" font-size="15" fill="#348354" font-weight="400" text-anchor="start" class="label">NAT를 통한 외부 HTTPS 통신</text>
 <path d="M1020 650 H1135 V903 H875 V970 H900" fill="none" stroke="#7653ad" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#arrow-purple)" stroke-dasharray="7 5"/>
-<text x="1078" y="918" font-size="15" fill="#7653ad" font-weight="400" text-anchor="start" class="label">Logs / metrics</text>
+<text x="1078" y="918" font-size="15" fill="#7653ad" font-weight="400" text-anchor="start" class="label">로그 · 지표</text>
 <path d="M130 250 V302" fill="none" stroke="#7653ad" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#arrow-purple)" stroke-dasharray="7 5"/>
 <path d="M130 415 V490" fill="none" stroke="#348354" stroke-width="2.4" stroke-linejoin="round" marker-end="url(#arrow-green)" stroke-dasharray="7 5"/>
 <rect x="40" y="150" width="180" height="100" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
-<text x="58" y="198.0" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">Gabia DNS</text>
-<text x="58" y="223.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">CNAME records</text>
+<text x="58" y="198.0" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">가비아 DNS</text>
+<text x="58" y="223.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">CNAME 레코드 관리</text>
 <rect x="40" y="302" width="170" height="113" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
-<text x="58" y="356.5" font-size="20" fill="#152b45" font-weight="700" text-anchor="start">Users</text>
-<text x="58" y="381.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">Web / Mobile</text>
+<text x="58" y="356.5" font-size="20" fill="#152b45" font-weight="700" text-anchor="start">사용자</text>
+<text x="58" y="381.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">웹 · 모바일</text>
 <rect x="40" y="490" width="180" height="100" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
-<text x="58" y="538.0" font-size="20" fill="#348354" font-weight="700" text-anchor="start">Kakao SDK</text>
-<text x="58" y="563.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">Browser → CDN</text>
+<text x="58" y="538.0" font-size="20" fill="#348354" font-weight="700" text-anchor="start">카카오 지도 SDK</text>
+<text x="58" y="563.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">브라우저 → CDN</text>
 <rect x="40" y="685" width="180" height="135" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
-<text x="58" y="750.5" font-size="20" fill="#348354" font-weight="700" text-anchor="start">External APIs</text>
-<text x="58" y="775.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">KMA / NAVER</text>
-<text x="58" y="794" font-size="14" fill="#60738b" font-weight="400" text-anchor="start">Kakao / EXIM / KASI</text>
-<text x="300" y="208" font-size="15" fill="#60738b" font-weight="700" text-anchor="start">GLOBAL EDGE</text>
+<text x="58" y="750.5" font-size="20" fill="#348354" font-weight="700" text-anchor="start">외부 API</text>
+<text x="58" y="775.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">기상청 / 네이버</text>
+<text x="58" y="794" font-size="14" fill="#60738b" font-weight="400" text-anchor="start">카카오 / 수출입은행 / KASI</text>
+<text x="300" y="208" font-size="15" fill="#60738b" font-weight="700" text-anchor="start">글로벌 엣지</text>
 <rect x="300" y="300" width="210" height="115" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-cloudfront" xlink:href="#icon-cloudfront" x="315" y="333.5" width="48" height="48"/>
 <text x="378" y="355.5" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">CloudFront</text>
-<text x="378" y="380.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">www domain</text>
+<text x="378" y="380.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">www 도메인</text>
 <rect x="300" y="555" width="235" height="105" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-acm" xlink:href="#icon-acm" x="315" y="583.5" width="48" height="48"/>
 <text x="378" y="605.5" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">ACM · HTTPS</text>
 <text x="378" y="630.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">us-east-1</text>
-<text x="300" y="685" font-size="17" fill="#60738b" font-weight="400" text-anchor="start">SPA routing · OAC</text>
-<text x="300" y="716" font-size="17" fill="#60738b" font-weight="400" text-anchor="start">CSP / HSTS headers</text>
-<text x="300" y="747" font-size="17" fill="#60738b" font-weight="400" text-anchor="start">Host-only auth cookies</text>
+<text x="300" y="685" font-size="17" fill="#60738b" font-weight="400" text-anchor="start">SPA 라우팅 · OAC</text>
+<text x="300" y="716" font-size="17" fill="#60738b" font-weight="400" text-anchor="start">CSP / HSTS 헤더</text>
+<text x="300" y="747" font-size="17" fill="#60738b" font-weight="400" text-anchor="start">호스트 전용 인증 쿠키</text>
 <rect x="600" y="210" width="250" height="83" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-s3" xlink:href="#icon-s3" x="615" y="227.5" width="48" height="48"/>
-<text x="678" y="249.5" font-size="20" fill="#348354" font-weight="700" text-anchor="start">Private S3</text>
-<text x="678" y="274.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">React + runtime config</text>
+<text x="678" y="249.5" font-size="20" fill="#348354" font-weight="700" text-anchor="start">비공개 S3</text>
+<text x="678" y="274.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">React · 실행 설정</text>
 <rect x="870" y="210" width="230" height="83" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-ecr" xlink:href="#icon-ecr" x="885" y="227.5" width="48" height="48"/>
 <text x="948" y="249.5" font-size="20" fill="#3478c7" font-weight="700" text-anchor="start">Amazon ECR</text>
-<text x="948" y="274.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">Immutable image digest</text>
+<text x="948" y="274.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">이미지 다이제스트 고정</text>
 <rect x="1120" y="210" width="275" height="83" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-secrets" xlink:href="#icon-secrets" x="1135" y="227.5" width="48" height="48"/>
 <text x="1198" y="249.5" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">SSM / Secrets</text>
-<text x="1198" y="274.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">API keys + DB secret</text>
+<text x="1198" y="274.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">API 키 · DB 접속 정보</text>
 <rect x="1415" y="210" width="270" height="83" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-acm" xlink:href="#icon-acm" x="1430" y="227.5" width="48" height="48"/>
 <text x="1493" y="249.5" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">ACM · API TLS</text>
@@ -245,41 +245,41 @@
 <rect x="650" y="476" width="165" height="70" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-nat" xlink:href="#icon-nat" x="665" y="487.0" width="48" height="48"/>
 <text x="728" y="509.0" font-size="20" fill="#348354" font-weight="700" text-anchor="start">NAT</text>
-<text x="728" y="534.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">1 gateway</text>
+<text x="728" y="534.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">1개 운영</text>
 <use href="#icon-igw" xlink:href="#icon-igw" x="576" y="486" width="44" height="44"/>
 <text x="574" y="564" font-size="14" fill="#348354" font-weight="700" text-anchor="start">IGW</text>
 <rect x="850" y="458" width="400" height="87" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-alb" xlink:href="#icon-alb" x="865" y="477.5" width="48" height="48"/>
-<text x="928" y="499.5" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">Application Load Balancer</text>
-<text x="928" y="524.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">Public placement across both AZs</text>
+<text x="928" y="499.5" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">애플리케이션 로드 밸런서</text>
+<text x="928" y="524.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">두 가용 영역의 퍼블릭 서브넷 배치</text>
 <rect x="660" y="612" width="360" height="63" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-fargate" xlink:href="#icon-fargate" x="675" y="619.5" width="48" height="48"/>
 <text x="738" y="641.5" font-size="20" fill="#3478c7" font-weight="700" text-anchor="start">ECS Fargate</text>
-<text x="738" y="666.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">Spring Boot · 1 task · no public IP</text>
+<text x="738" y="666.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">Spring Boot · 작업 1개 · 공인 IP 없음</text>
 <rect x="660" y="748" width="360" height="63" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-rds" xlink:href="#icon-rds" x="675" y="755.5" width="48" height="48"/>
 <text x="738" y="777.5" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">RDS PostgreSQL 17</text>
-<text x="738" y="802.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">db.t4g.micro · Single-AZ</text>
+<text x="738" y="802.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">db.t4g.micro · 단일 가용 영역</text>
 <rect x="1180" y="612" width="445" height="63" rx="12" fill="#f9fbfd" stroke="#b5c3d3" stroke-width="1.5" stroke-dasharray="7 6"/>
-<text x="1198" y="641.5" font-size="20" fill="#60738b" font-weight="700" text-anchor="start">App capacity for expansion</text>
-<text x="1198" y="666.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">Subnet provisioned · no running task</text>
+<text x="1198" y="641.5" font-size="20" fill="#60738b" font-weight="700" text-anchor="start">앱 확장용 서브넷</text>
+<text x="1198" y="666.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">서브넷 확보 · 실행 중인 작업 없음</text>
 <rect x="1180" y="748" width="445" height="63" rx="12" fill="#f9fbfd" stroke="#b5c3d3" stroke-width="1.5" stroke-dasharray="7 6"/>
-<text x="1198" y="777.5" font-size="20" fill="#60738b" font-weight="700" text-anchor="start">DB subnet group member</text>
-<text x="1198" y="802.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">No standby database in this AZ</text>
+<text x="1198" y="777.5" font-size="20" fill="#60738b" font-weight="700" text-anchor="start">DB 서브넷 그룹 구성</text>
+<text x="1198" y="802.5" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">이 가용 영역에는 대기 DB 없음</text>
 <rect x="600" y="930" width="270" height="80" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-s3" xlink:href="#icon-s3" x="615" y="946.0" width="48" height="48"/>
-<text x="678" y="968.0" font-size="20" fill="#348354" font-weight="700" text-anchor="start">Terraform state</text>
-<text x="678" y="993.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">Separate bootstrap S3</text>
+<text x="678" y="968.0" font-size="20" fill="#348354" font-weight="700" text-anchor="start">Terraform 상태</text>
+<text x="678" y="993.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">별도 bootstrap S3에 보관</text>
 <rect x="900" y="930" width="325" height="80" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-cloudwatch" xlink:href="#icon-cloudwatch" x="915" y="946.0" width="48" height="48"/>
 <text x="978" y="968.0" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">CloudWatch</text>
-<text x="978" y="993.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">Logs / request IDs / alarms</text>
+<text x="978" y="993.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">로그 · 요청 ID · 알람</text>
 <rect x="1250" y="930" width="435" height="80" rx="12" fill="#fff" stroke="#b7c8da" stroke-width="1.5"/>
 <use href="#icon-rds" xlink:href="#icon-rds" x="1265" y="946.0" width="48" height="48"/>
-<text x="1328" y="968.0" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">Interview lifecycle</text>
-<text x="1328" y="993.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">Final snapshot → restore before LIVE</text>
-<text x="42" y="1091" font-size="15" fill="#3478c7" font-weight="700" text-anchor="start">REQUEST FLOW</text>
-<text x="220" y="1091" font-size="18" fill="#152b45" font-weight="400" text-anchor="start">Users → CloudFront → S3 or ALB → private Fargate → private RDS</text>
-<text x="42" y="1126" font-size="15" fill="#7653ad" font-weight="700" text-anchor="start">SECURITY</text>
-<text x="220" y="1126" font-size="17" fill="#152b45" font-weight="400" text-anchor="start">ALB :443 accepts CloudFront prefix list only · ECS :8080 from ALB SG · DB :5432 from ECS SG</text>
+<text x="1328" y="968.0" font-size="20" fill="#7653ad" font-weight="700" text-anchor="start">시연용 중단 · 복원</text>
+<text x="1328" y="993.0" font-size="15" fill="#60738b" font-weight="400" text-anchor="start">최종 스냅샷 → 복원 → LIVE 전환</text>
+<text x="42" y="1091" font-size="15" fill="#3478c7" font-weight="700" text-anchor="start">요청 흐름</text>
+<text x="220" y="1091" font-size="18" fill="#152b45" font-weight="400" text-anchor="start">사용자 → CloudFront → S3 또는 ALB → 프라이빗 Fargate → 프라이빗 RDS</text>
+<text x="42" y="1126" font-size="15" fill="#7653ad" font-weight="700" text-anchor="start">접근 제어</text>
+<text x="220" y="1126" font-size="17" fill="#152b45" font-weight="400" text-anchor="start">ALB 443: CloudFront 주소 목록만 허용 · ECS 8080: ALB 보안 그룹만 허용 · DB 5432: ECS 보안 그룹만 허용</text>
 </svg>
