@@ -291,9 +291,13 @@ variable "aiops_package_path" {
 }
 variable "aiops_settings" {
   type = object({
-    processing_enabled     = optional(bool, true)
-    ai_enabled             = optional(bool, false)
-    model                  = optional(string, "")
+    # -1: 예약 없이 계정 공용 동시 실행 사용. 양수는 계정 한도에 여유가 있을 때만 지정합니다.
+    reserved_concurrency = optional(number, -1)
+    processing_enabled   = optional(bool, true)
+    ai_enabled           = optional(bool, false)
+    model                = optional(string, "")
+    # 빈 값은 기존 모델 기본 동작 유지. gpt-6-luna 비용/지연 제어에는 none을 지정합니다.
+    reasoning_effort       = optional(string, "")
     daily_limit            = optional(number, 5)
     notification_limit     = optional(number, 20)
     max_log_chars          = optional(number, 3000)
@@ -308,7 +312,15 @@ variable "aiops_settings" {
   })
   default = {}
   validation {
+    condition     = contains(["", "none", "low", "medium", "high", "xhigh", "max"], var.aiops_settings.reasoning_effort)
+    error_message = "reasoning_effort는 빈 값 또는 none/low/medium/high/xhigh/max 중 하나여야 합니다. 실제 모델의 지원 범위도 확인하세요."
+  }
+  validation {
+    condition     = var.aiops_settings.reserved_concurrency == -1 || (var.aiops_settings.reserved_concurrency >= 1 && var.aiops_settings.reserved_concurrency <= 10 && floor(var.aiops_settings.reserved_concurrency) == var.aiops_settings.reserved_concurrency)
+    error_message = "예약 동시 실행 수는 -1(예약 없음) 또는 1~10 정수여야 합니다. 0은 함수 실행을 중단하므로 사용하지 않습니다."
+  }
+  validation {
     condition     = var.aiops_settings.daily_limit >= 0 && var.aiops_settings.daily_limit <= 100 && floor(var.aiops_settings.daily_limit) == var.aiops_settings.daily_limit && var.aiops_settings.notification_limit >= 0 && var.aiops_settings.notification_limit <= 100 && floor(var.aiops_settings.notification_limit) == var.aiops_settings.notification_limit && var.aiops_settings.api_timeout >= 1 && var.aiops_settings.api_timeout <= 15 && var.aiops_settings.max_log_chars >= 256 && var.aiops_settings.max_log_chars <= 8000 && var.aiops_settings.max_output_tokens >= 128 && var.aiops_settings.max_output_tokens <= 2000 && var.aiops_settings.dedup_seconds >= 60 && var.aiops_settings.dedup_seconds <= 86400 && var.aiops_settings.max_events >= 1 && var.aiops_settings.max_events <= 50 && alltrue([for s in var.aiops_settings.ai_severities : contains(["HIGH", "CRITICAL"], s)]) && var.aiops_settings.input_usd_per_million >= 0 && var.aiops_settings.output_usd_per_million >= 0 && alltrue([for n in [var.aiops_settings.api_timeout, var.aiops_settings.max_log_chars, var.aiops_settings.max_output_tokens, var.aiops_settings.dedup_seconds, var.aiops_settings.max_events] : floor(n) == n]) && contains([1, 3, 5, 7, 14, 30], var.aiops_settings.log_retention_days)
-    error_message = "AIOps 호출/길이/timeout/중복/심각도/단가 설정 범위를 확인하세요. docs/AIOPS_COST_SECURITY.md 참고."
+    error_message = "AIOps 호출/길이/timeout/중복/심각도/단가 설정 범위를 확인하세요. docs/AIOPS.md 참고."
   }
 }

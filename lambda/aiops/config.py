@@ -16,6 +16,7 @@ class Config:
     processing_enabled: bool = True
     ai_enabled: bool = False
     model: str = ""
+    reasoning_effort: str = ""
     daily_limit: int = 5
     notification_limit: int = 20
     max_log_chars: int = 3000
@@ -32,6 +33,9 @@ class Config:
     topic_arn: str = ""
     table_name: str = ""
     key_arn: str = ""
+    schedule_group: str = ""
+    schedule_role_arn: str = ""
+    function_arn: str = ""
     input_price: float = 0
     output_price: float = 0
 
@@ -41,6 +45,7 @@ class Config:
             processing_enabled=os.getenv("PROCESSING_ENABLED", "true").lower() == "true",
             ai_enabled=os.getenv("AI_ENABLED", "false").lower() == "true",
             model=os.getenv("GPT_MODEL", ""),
+            reasoning_effort=os.getenv("GPT_REASONING_EFFORT", ""),
             daily_limit=number("DAILY_GPT_LIMIT", 5, 0, 100),
             notification_limit=number("DAILY_NOTIFICATION_LIMIT", 20, 0, 100),
             max_log_chars=number("MAX_LOG_CHARS", 3000, 256, 8000),
@@ -56,9 +61,14 @@ class Config:
             topic_arn=os.getenv("SNS_TOPIC_ARN", ""),
             table_name=os.getenv("STATE_TABLE", ""),
             key_arn=os.getenv("OPENAI_KEY_ARN", ""),
+            schedule_group=os.getenv("SUMMARY_SCHEDULE_GROUP", ""),
+            schedule_role_arn=os.getenv("SUMMARY_SCHEDULE_ROLE_ARN", ""),
+            function_arn=os.getenv("SUMMARY_FUNCTION_ARN", ""),
             input_price=float(os.getenv("INPUT_USD_PER_MILLION", "0")),
             output_price=float(os.getenv("OUTPUT_USD_PER_MILLION", "0")),
         )
+        if value.reasoning_effort not in ("", "none", "low", "medium", "high", "xhigh", "max"):
+            raise ValueError("Invalid configuration: GPT_REASONING_EFFORT")
         if value.ai_enabled and (not value.model or not value.key_arn):
             raise ValueError("AI requires GPT_MODEL and OPENAI_KEY_ARN")
         return value

@@ -2,3 +2,5 @@
 output "function_name" { value = aws_lambda_function.analyzer.function_name }
 output "topic_arn" { value = aws_sns_topic.alerts.arn }
 output "table_name" { value = aws_dynamodb_table.state.name }
+
+output "summary_schedule_group" { value = aws_scheduler_schedule_group.summary.name }

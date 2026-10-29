@@ -35,4 +35,4 @@ output "target_group_arn" { value = try(module.alb[0].target_group_arn, null) }
 output "rds_identifier" { value = try(module.rds[0].rds_identifier, null) }
 output "log_group_name" { value = "/${var.project}/backend" }
 
-output "aiops" { value = try({ function_name = module.aiops[0].function_name, topic_arn = module.aiops[0].topic_arn, table_name = module.aiops[0].table_name }, null) }
+output "aiops" { value = try({ function_name = module.aiops[0].function_name, topic_arn = module.aiops[0].topic_arn, table_name = module.aiops[0].table_name, summary_schedule_group = module.aiops[0].summary_schedule_group }, null) }

@@ -8,7 +8,9 @@ from botocore.exceptions import ClientError
 from config import Config
 from deduplicator import StateStore
 from gpt_analyzer import Outcome
-from handler import process
+from handler import process as run_process
+from burst import BurstStore, event_key
+from fake_burst import FakeBurstClient
 from sns_notifier import Notifier, notification
 from conftest import logs, plain
 from event_parser import Incident
@@ -62,6 +64,22 @@ class FakeTable:
                     {"Error": {"Code": "ConditionalCheckFailedException"}}, "UpdateItem"
                 )
             return {"Attributes": old}
+
+
+def process(event, config, state, analyzer, notifier, context=None):
+    if state is not None and not hasattr(state, "test_burst"):
+        state.test_burst = BurstStore(FakeBurstClient(), "test", state.clock)
+        state.test_scheduler = Mock()
+    return run_process(
+        event,
+        config,
+        state,
+        analyzer,
+        notifier,
+        context,
+        burst=getattr(state, "test_burst", None),
+        scheduler=getattr(state, "test_scheduler", None),
+    )
 
 
 def store(config):
@@ -159,11 +177,9 @@ def test_inflight_requests_retry_instead_of_ack_losing_alarm(config):
     state = store(config)
     event = logs(plain())
     from event_parser import parse_event
-    from log_sanitizer import sanitize_incident
-    from deduplicator import fingerprint
 
-    incident = sanitize_incident(parse_event(event, config)[0], config.max_log_chars)
-    state.claim(fingerprint(incident, "API_TIMEOUT"))
+    incident = parse_event(event, config)[0]
+    state.claim("delivery-v2-" + event_key(incident))
     with pytest.raises(RuntimeError, match="delivery pending"):
         process(event, config, state, Mock(), Mock())
 
@@ -202,11 +218,12 @@ def test_daily_quota_is_utc_day_and_failure_consumes_attempt(config):
     assert state.quota("gpt", 1)
 
 
-def test_repeated_prefix_does_not_hide_new_failure_in_same_batch(config):
+def test_burst_prefix_does_not_hide_new_failure_in_same_batch(config):
     config = replace(config, max_events=2)
     event = logs(
         *([plain()] * 50), plain("errorCode=INTERNAL httpStatus=500 exception=OtherException")
     )
     notifier = Mock()
     counts = process(event, config, store(config), Mock(), notifier)
-    assert counts["published"] == 2 and counts["duplicate"] == 49 and counts["batch_dropped"] == 0
+    assert counts["published"] == 10 and counts["aggregated"] == 41
+    assert counts["duplicate"] == 0 and counts["batch_dropped"] == 0

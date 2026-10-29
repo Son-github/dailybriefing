@@ -29,7 +29,7 @@ class StateStore:
     def __init__(self, table, config, clock):
         self.table, self.config, self.clock = table, config, clock
 
-    def claim(self, key):
+    def claim(self, key, retention=None):
         now = int(self.clock())
         owner = uuid.uuid4().hex
         try:
@@ -43,7 +43,7 @@ class StateStore:
                     ":retry": "RETRY",
                     ":owner": owner,
                     ":lease": now + self.config.lease_seconds,
-                    ":expires": now + self.config.dedup_seconds,
+                    ":expires": now + (retention or self.config.dedup_seconds),
                     ":now": now,
                 },
                 ReturnValues="ALL_OLD",

@@ -1,7 +1,8 @@
 # [비용 주의] 이 코드는 생성 정의입니다. 이번 작업에서는 AWS 명령을 실행하지 않습니다.
 # Lambda는 VPC에 넣지 않습니다. 기존 ECS NAT와 별개로 AWS 기본 네트워크에서 HTTPS API에 접근합니다.
 locals {
-  name = "${var.project}-aiops"
+  name         = "${var.project}-aiops"
+  analyzer_arn = "arn:aws:lambda:${var.region}:${var.aws_account_id}:function:${var.project}-aiops"
   rules = {
     task = {
       source        = ["aws.ecs"]
@@ -48,14 +49,16 @@ resource "aws_iam_role" "execution" {
   name               = "${local.name}-execution"
   assume_role_policy = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = "Allow", Principal = { Service = "lambda.amazonaws.com" }, Action = "sts:AssumeRole" }] })
 }
-# [최소 권한] 자기 로그, 자기 table의 Get/Update, 자기 SNS Publish, 지정한 키 읽기만 허용합니다.
+# [최소 권한] 자기 로그·테이블·SNS·지정한 키와 전용 일회성 예약만 허용합니다.
 # ECS/RDS/SG 변경권한 및 backend 로그 전체 조회 권한은 없습니다(구독 payload에서만 수집).
 resource "aws_iam_role_policy" "execution" {
   role = aws_iam_role.execution.id
   policy = jsonencode({ Version = "2012-10-17", Statement = concat([
     { Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = "${aws_cloudwatch_log_group.lambda.arn}:*" },
-    { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:UpdateItem"], Resource = aws_dynamodb_table.state.arn },
-    { Effect = "Allow", Action = ["sns:Publish"], Resource = aws_sns_topic.alerts.arn }
+    { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"], Resource = aws_dynamodb_table.state.arn },
+    { Effect = "Allow", Action = ["sns:Publish"], Resource = aws_sns_topic.alerts.arn },
+    { Effect = "Allow", Action = ["scheduler:CreateSchedule", "scheduler:GetSchedule"], Resource = "arn:aws:scheduler:${var.region}:${var.aws_account_id}:schedule/${aws_scheduler_schedule_group.summary.name}/burst-*" },
+    { Effect = "Allow", Action = ["iam:PassRole"], Resource = aws_iam_role.summary_scheduler.arn, Condition = { StringEquals = { "iam:PassedToService" = "scheduler.amazonaws.com" } } }
     ], !var.settings.ai_enabled ? [] : [
     { Effect = "Allow", Action = startswith(var.openai_key_arn, "arn:aws:ssm:") ? ["ssm:GetParameter"] : ["secretsmanager:GetSecretValue"], Resource = var.openai_key_arn }
     ], !var.settings.ai_enabled || var.secret_kms_key_arn == "" ? [] : [
@@ -63,38 +66,44 @@ resource "aws_iam_role_policy" "execution" {
   ]) })
 }
 resource "aws_lambda_function" "analyzer" {
-  function_name                  = local.name
-  role                           = aws_iam_role.execution.arn
-  runtime                        = "python3.13"
-  architectures                  = ["x86_64"]
-  handler                        = "handler.lambda_handler"
-  filename                       = var.package_path
-  source_code_hash               = fileexists(var.package_path) ? filebase64sha256(var.package_path) : null
-  memory_size                    = 256
-  timeout                        = 60
-  reserved_concurrent_executions = 2
+  function_name    = local.name
+  role             = aws_iam_role.execution.arn
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  handler          = "handler.lambda_handler"
+  filename         = var.package_path
+  source_code_hash = fileexists(var.package_path) ? filebase64sha256(var.package_path) : null
+  memory_size      = 256
+  timeout          = 60
+  # 신규/한도가 낮은 계정은 예약 1개도 허용되지 않을 수 있으므로 기본값은 -1입니다.
+  # 공용 동시 실행을 사용해도 DynamoDB의 중복 방지와 AI/알림 일일 한도는 유지됩니다.
+  reserved_concurrent_executions = var.settings.reserved_concurrency
   environment {
     variables = {
-      PROCESSING_ENABLED       = tostring(var.settings.processing_enabled)
-      AI_ENABLED               = tostring(var.settings.ai_enabled)
-      GPT_MODEL                = var.settings.model
-      DAILY_GPT_LIMIT          = tostring(var.settings.daily_limit)
-      DAILY_NOTIFICATION_LIMIT = tostring(var.settings.notification_limit)
-      MAX_LOG_CHARS            = tostring(var.settings.max_log_chars)
-      MAX_OUTPUT_TOKENS        = tostring(var.settings.max_output_tokens)
-      GPT_TIMEOUT_SECONDS      = tostring(var.settings.api_timeout)
-      DEDUP_SECONDS            = tostring(var.settings.dedup_seconds)
-      MAX_EVENTS               = tostring(var.settings.max_events)
-      AI_SEVERITIES            = join(",", var.settings.ai_severities)
-      SERVICE_NAME             = "daily-briefing"
-      ECS_CLUSTER_ARN          = var.ecs_cluster_arn
-      ECS_SERVICE_ARN          = var.ecs_service_arn
-      ECS_SERVICE_NAME         = var.ecs_service_name
-      SNS_TOPIC_ARN            = aws_sns_topic.alerts.arn
-      STATE_TABLE              = aws_dynamodb_table.state.name
-      OPENAI_KEY_ARN           = var.settings.ai_enabled ? var.openai_key_arn : ""
-      INPUT_USD_PER_MILLION    = tostring(var.settings.input_usd_per_million)
-      OUTPUT_USD_PER_MILLION   = tostring(var.settings.output_usd_per_million)
+      SUMMARY_SCHEDULE_GROUP    = aws_scheduler_schedule_group.summary.name
+      SUMMARY_SCHEDULE_ROLE_ARN = aws_iam_role.summary_scheduler.arn
+      SUMMARY_FUNCTION_ARN      = local.analyzer_arn
+      PROCESSING_ENABLED        = tostring(var.settings.processing_enabled)
+      AI_ENABLED                = tostring(var.settings.ai_enabled)
+      GPT_MODEL                 = var.settings.model
+      GPT_REASONING_EFFORT      = var.settings.reasoning_effort
+      DAILY_GPT_LIMIT           = tostring(var.settings.daily_limit)
+      DAILY_NOTIFICATION_LIMIT  = tostring(var.settings.notification_limit)
+      MAX_LOG_CHARS             = tostring(var.settings.max_log_chars)
+      MAX_OUTPUT_TOKENS         = tostring(var.settings.max_output_tokens)
+      GPT_TIMEOUT_SECONDS       = tostring(var.settings.api_timeout)
+      DEDUP_SECONDS             = tostring(var.settings.dedup_seconds)
+      MAX_EVENTS                = tostring(var.settings.max_events)
+      AI_SEVERITIES             = join(",", var.settings.ai_severities)
+      SERVICE_NAME              = "daily-briefing"
+      ECS_CLUSTER_ARN           = var.ecs_cluster_arn
+      ECS_SERVICE_ARN           = var.ecs_service_arn
+      ECS_SERVICE_NAME          = var.ecs_service_name
+      SNS_TOPIC_ARN             = aws_sns_topic.alerts.arn
+      STATE_TABLE               = aws_dynamodb_table.state.name
+      OPENAI_KEY_ARN            = var.settings.ai_enabled ? var.openai_key_arn : ""
+      INPUT_USD_PER_MILLION     = tostring(var.settings.input_usd_per_million)
+      OUTPUT_USD_PER_MILLION    = tostring(var.settings.output_usd_per_million)
     }
   }
   lifecycle {
@@ -111,7 +120,7 @@ resource "aws_lambda_function" "analyzer" {
       error_message = "Lambda 자신의 로그 그룹을 구독하면 재귀 호출됩니다. Backend 로그만 지정하세요."
     }
   }
-  depends_on = [aws_iam_role_policy.execution, aws_cloudwatch_log_group.lambda]
+  depends_on = [aws_iam_role_policy.execution, aws_cloudwatch_log_group.lambda, aws_iam_role_policy.summary_scheduler]
 }
 # SNS 실패/lease 충돌 등은 비동기 재시도 2회. 이후 손실 가능성은 Lambda Errors에서 운영자가 점검합니다.
 # 원본 payload/개인정보가 별도 DLQ에 복제되는 것을 피하려고 DLQ를 추가하지 않았습니다.
