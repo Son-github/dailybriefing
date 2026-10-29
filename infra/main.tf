@@ -130,5 +130,5 @@ module "aiops" {
   email                  = var.aiops_email
   openai_key_arn         = var.aiops_openai_key_arn
   secret_kms_key_arn     = var.aiops_secret_kms_key_arn
-  settings               = var.aiops_settings
+  settings               = merge(var.aiops_settings, { processing_enabled = local.aiops_processing_enabled })
 }

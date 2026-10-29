@@ -25,6 +25,9 @@ variable "interview_mode" {
 locals {
   backend_running             = var.enable_backend && var.interview_mode != "suspended"
   preparing_interview_suspend = var.interview_mode == "prepare-suspend"
+  # 종료 중 ERROR/비정상 종료 이벤트가 AI 요청/알림으로 이어지지 않게 준비 단계부터 수집을 멈춥니다.
+  # 재개 시에는 원래 processing_enabled/ai_enabled 설정을 사용합니다.
+  aiops_processing_enabled    = var.enable_aiops && local.backend_running && var.interview_mode == "running" && var.aiops_settings.processing_enabled
   effective_database_disposal = local.preparing_interview_suspend ? "snapshot" : var.database_disposal
   effective_database_ack      = local.preparing_interview_suspend || var.ephemeral_database_ack
 }
@@ -45,13 +48,14 @@ data "aws_db_snapshot" "interview_restore" {
 output "interview" {
   description = "운영 모드 및 복구 안내. 스냅샷이 실제 생성/복원됐다는 확인을 대신하지 않습니다."
   value = {
-    mode                    = var.interview_mode
-    backend_running         = local.backend_running
-    final_snapshot          = var.final_snapshot_identifier
-    restore_snapshot        = var.restore_snapshot_identifier
-    api_dns_name            = var.api_hostname
-    api_cname_target        = try(module.alb[0].alb_dns_name, null)
-    frontend_url            = module.frontend.frontend_url
-    runtime_change_required = "중단 전 STATIC_DEMO, 재개 후 DNS/API 확인을 마친 뒤 LIVE를 Actions로 전환하세요."
+    mode                     = var.interview_mode
+    backend_running          = local.backend_running
+    aiops_processing_enabled = local.aiops_processing_enabled
+    final_snapshot           = var.final_snapshot_identifier
+    restore_snapshot         = var.restore_snapshot_identifier
+    api_dns_name             = var.api_hostname
+    api_cname_target         = try(module.alb[0].alb_dns_name, null)
+    frontend_url             = module.frontend.frontend_url
+    runtime_change_required  = "중단 전 STATIC_DEMO, 재개 후 DNS/API 확인을 마친 뒤 LIVE를 Actions로 전환하세요."
   }
 }

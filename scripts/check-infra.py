@@ -55,3 +55,13 @@ assert 'module.ecs[0].cluster_arn' in read('infra/main.tf')
 assert 'module.ecs[0].log_group_arn' in read('infra/main.tf')
 assert 'fileexists(var.package_path)' in aiops
 print('PASS: 기존 8개+AIOps 모듈/단일 Main State/비밀값/사설망/자동 인프라 변경 금지 검사')
+
+summary = read('infra/modules/aiops/scheduler.tf')
+assert 'aws_scheduler_schedule_group' in summary
+assert 'rate(' not in summary and 'cron(' not in summary
+assert 'scheduler:CreateSchedule' in aiops and 'scheduler:GetSchedule' in aiops
+assert 'iam:PassedToService' in aiops and 'scheduler.amazonaws.com' in aiops
+assert 'reserved_concurrent_executions = var.settings.reserved_concurrency' in aiops
+
+assert 'var.interview_mode == "running" && var.aiops_settings.processing_enabled' in interview
+assert 'merge(var.aiops_settings, { processing_enabled = local.aiops_processing_enabled })' in read('infra/main.tf')

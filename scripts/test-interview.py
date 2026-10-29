@@ -127,6 +127,78 @@ class InterviewTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             interview.check_plan(p, "suspend")
 
+    def test_prepare_allows_only_aiops_processing_flag_change(self):
+        p = plan("prepare-suspend")
+        before = {"arn": "arn:lambda:test", "source_code_hash": "same-code", "role": "same-role",
+                  "environment": [{"variables": {"PROCESSING_ENABLED": "true", "AI_ENABLED": "true", "GPT_MODEL": "gpt-6-luna"}}]}
+        after = deepcopy(before)
+        after["environment"][0]["variables"]["PROCESSING_ENABLED"] = "false"
+        change = {"mode": "managed", "address": interview.AIOPS_FUNCTION,
+                  "change": {"actions": ["update"], "before": before, "after": after}}
+        p["resource_changes"].append(change)
+        self.assertEqual(interview.check_plan(p, "prepare-suspend")["update"], 2)
+        for field, value in (("source_code_hash", "new-code"), ("role", "different-role")):
+            bad = deepcopy(p)
+            bad["resource_changes"][-1]["change"]["after"][field] = value
+            with self.assertRaisesRegex(ValueError, "준비 단계"):
+                interview.check_plan(bad, "prepare-suspend")
+        after["environment"][0]["variables"]["AI_ENABLED"] = "false"
+        with self.assertRaisesRegex(ValueError, "준비 단계"):
+            interview.check_plan(p, "prepare-suspend")
+
+    def test_prepare_allows_rule_disable_but_not_filter_changes(self):
+        p = plan("prepare-suspend")
+        before = {"state": "ENABLED", "event_pattern": "same-filter", "name": "same-name"}
+        after = dict(before, state="DISABLED")
+        change = {"mode": "managed", "address": next(iter(interview.AIOPS_RULES)),
+                  "change": {"actions": ["update"], "before": before, "after": after}}
+        p["resource_changes"].append(change)
+        interview.check_plan(p, "prepare-suspend")
+        after["event_pattern"] = "broader-filter"
+        with self.assertRaisesRegex(ValueError, "준비 단계"):
+            interview.check_plan(p, "prepare-suspend")
+
+    def test_prepare_subscription_removal_must_match_own_lambda_and_backend(self):
+        p = plan("prepare-suspend")
+        p["resource_changes"] += [
+            {"mode": "managed", "address": interview.AIOPS_FUNCTION,
+             "change": {"actions": ["no-op"], "before": {"arn": "arn:lambda:own", "environment": [{"variables": {"PROCESSING_ENABLED": "false"}}]}}},
+            {"mode": "managed", "address": "module.ecs[0].aws_cloudwatch_log_group.backend",
+             "change": {"actions": ["no-op"], "before": {"name": "/own/backend"}}},
+            {"mode": "managed", "address": interview.AIOPS_SUBSCRIPTION,
+             "change": {"actions": ["delete"], "before": {"destination_arn": "arn:lambda:own", "log_group_name": "/own/backend"}}},
+        ]
+        interview.check_plan(p, "prepare-suspend")
+        p["resource_changes"][-1]["change"]["before"]["destination_arn"] = "arn:lambda:other"
+        with self.assertRaisesRegex(ValueError, "준비 단계"):
+            interview.check_plan(p, "prepare-suspend")
+
+    def test_prepare_rejects_aiops_deletion_and_iam_changes(self):
+        for address, action in ((interview.AIOPS_FUNCTION, "delete"),
+                                ("module.aiops[0].aws_iam_role_policy.execution", "update"),
+                                ("module.aiops[0].aws_scheduler_schedule_group.summary", "delete")):
+            p = plan("prepare-suspend")
+            p["resource_changes"].append({"mode": "managed", "address": address,
+                                          "change": {"actions": [action], "before": {}, "after": {}}})
+            with self.assertRaisesRegex(ValueError, "준비 단계"):
+                interview.check_plan(p, "prepare-suspend")
+
+    def test_prepare_rejects_aiops_still_processing(self):
+        p = plan("prepare-suspend")
+        p["resource_changes"].append({"mode": "managed", "address": interview.AIOPS_FUNCTION,
+                                      "change": {"actions": ["no-op"], "before": {
+                                          "environment": [{"variables": {"PROCESSING_ENABLED": "true"}}]}}})
+        with self.assertRaisesRegex(ValueError, "PROCESSING_ENABLED"):
+            interview.check_plan(p, "prepare-suspend")
+
+    def test_suspend_and_resume_include_aiops_resources(self):
+        for phase, action in (("suspend", "delete"), ("resume", "create")):
+            p = plan(phase)
+            for resource in ("aws_scheduler_schedule_group.summary", "aws_dynamodb_table.state", "aws_sns_topic.alerts"):
+                p["resource_changes"].append({"mode": "managed", "address": "module.aiops[0]." + resource,
+                                              "change": {"actions": [action]}})
+            self.assertEqual(interview.check_plan(p, phase)[action], 4)
+
     def test_cli_only_writes_ignored_overlay(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

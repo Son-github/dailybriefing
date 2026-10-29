@@ -4,6 +4,7 @@
 저장합니다. check는 저장 계획을 로컬에서 show -json으로 읽을 뿐 원격 State를 읽지 않습니다.
 """
 import argparse
+from copy import deepcopy
 from datetime import datetime, timezone
 import json
 import os
@@ -54,6 +55,46 @@ def transition(current, command, snapshot=None):
     return result
 
 
+AIOPS_FUNCTION = "module.aiops[0].aws_lambda_function.analyzer"
+AIOPS_SUBSCRIPTION = "module.aiops[0].aws_cloudwatch_log_subscription_filter.backend[0]"
+AIOPS_RULES = {
+    'module.aiops[0].aws_cloudwatch_event_rule.ecs["task"]',
+    'module.aiops[0].aws_cloudwatch_event_rule.ecs["deployment"]',
+}
+
+
+def aiops_quiesce_only(item, changes):
+    """준비 단계의 수집 중지 변경만 허용합니다. ZIP·IAM·AI 설정 동시 변경은 거절합니다."""
+    address = item["address"]
+    change = item["change"]
+    before, after = change.get("before") or {}, change.get("after") or {}
+    if address == AIOPS_FUNCTION and change["actions"] == ["update"]:
+        # AWS가 계산하는 갱신 메타데이터 외에는 환경변수 한 개만 바뀌어야 합니다.
+        computed = {"last_modified", "version", "qualified_arn", "qualified_invoke_arn"}
+        if {k: v for k, v in before.items() if k not in computed | {"environment"}} != {
+            k: v for k, v in after.items() if k not in computed | {"environment"}
+        }:
+            return False
+        old_env, new_env = before.get("environment", []), after.get("environment", [])
+        if len(old_env) != 1 or len(new_env) != 1:
+            return False
+        expected = deepcopy(old_env)
+        expected[0].setdefault("variables", {})["PROCESSING_ENABLED"] = "false"
+        return new_env == expected
+    if address in AIOPS_RULES and change["actions"] == ["update"]:
+        return after.get("state") == "DISABLED" and {
+            k: v for k, v in before.items() if k != "state"
+        } == {k: v for k, v in after.items() if k != "state"}
+    if address == AIOPS_SUBSCRIPTION and change["actions"] == ["delete"]:
+        function = changes.get(AIOPS_FUNCTION, {}).get("change", {}).get("before") or {}
+        logs = changes.get("module.ecs[0].aws_cloudwatch_log_group.backend", {}).get("change", {}).get("before") or {}
+        destination = function.get("arn")
+        return bool(destination and logs.get("name")) and (
+            before.get("destination_arn") == destination and before.get("log_group_name") == logs["name"]
+        )
+    return False
+
+
 def check_plan(plan, phase):
     """보존 리소스 삭제/교체 및 준비 없는 DB 삭제를 거절합니다. 실제 복원 검증은 별도입니다."""
     if plan.get("errored") or plan.get("applyable") is False:
@@ -70,6 +111,7 @@ def check_plan(plan, phase):
     snapshot_name(snapshot)
     database_found = False
     counts = {"create": 0, "update": 0, "delete": 0}
+    changes = {item["address"]: item for item in plan.get("resource_changes", [])}
     for item in plan.get("resource_changes", []):
         if item.get("mode") != "managed":
             continue
@@ -89,8 +131,10 @@ def check_plan(plan, phase):
                     raise ValueError("CloudFront 화면 도메인/인증서/기본 동작은 보존해야 합니다.")
             continue
         if phase == "prepare-suspend":
+            if aiops_quiesce_only(item, changes):
+                continue
             if address != DATABASE or action != "update":
-                raise ValueError(f"준비 단계는 기존 DB 삭제 정책만 변경해야 합니다: {address}")
+                raise ValueError(f"준비 단계는 DB 삭제 정책과 AIOps 수집 중지만 변경해야 합니다: {address}")
         elif not address.startswith(RUNTIME_MODULES):
             raise ValueError(f"보존 자원 변경 금지: {address}")
         elif action != ("delete" if phase == "suspend" else "create"):
@@ -110,6 +154,12 @@ def check_plan(plan, phase):
             elif (db.get("deletion_protection") is not False or db.get("skip_final_snapshot") is not False
                   or db.get("final_snapshot_identifier") != snapshot):
                 raise ValueError("DB 최종 스냅샷 정책이 먼저 적용되지 않았습니다. prepare-suspend부터 완료하세요.")
+    if phase == "prepare-suspend" and AIOPS_FUNCTION in changes:
+        function = changes[AIOPS_FUNCTION]["change"]
+        proposed = function.get("after") or function.get("before") or {}
+        environment = proposed.get("environment", [])
+        if len(environment) != 1 or environment[0].get("variables", {}).get("PROCESSING_ENABLED") != "false":
+            raise ValueError("준비 단계에서 AIOps PROCESSING_ENABLED=false가 필요합니다.")
     if not database_found:
         raise ValueError("이 단계의 DB 작업이 없습니다. 부분 실패/이미 적용 여부를 먼저 확인하세요.")
     return counts
