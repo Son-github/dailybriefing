@@ -1,135 +1,98 @@
-# 사용자 수동 인프라 관리와 앱 배포
+# AWS 배포와 설정 변경
 
-면접 사이에 비용을 줄이려면 **[중단·스냅샷 복원·재개](INTERVIEW_OPERATIONS.md)**를 사용합니다. 아래 Main 전체 삭제 절차는 영구 정리용이며 면접용 일시 중단에 사용하지 않습니다.
+현재 서비스는 가비아 DNS, CloudFront/S3, ALB, Private ECS, Private RDS를 사용합니다. Route 53은 사용하지 않습니다. 이미 배포한 환경은 아래 운영 절차부터 확인하고, 새 환경을 만들 때만 마지막의 최초 구축 절차를 사용하세요.
 
-**이 문서의 AWS 쓰기/배포/삭제 명령은 이번 작업에서 실행하지 않았습니다. 사용자가 나중에 비용/계정/데이터 정책을 확인한 뒤 직접 실행할 예시입니다.** AWS 리소스를 만들지 않고 쓰려면 LOCAL만 사용하세요.
+Terraform 계획과 적용은 운영자가 직접 실행합니다. GitHub Actions는 앱을 배포하며 인프라를 생성하거나 삭제하지 않습니다. 시연 사이에 자원을 내릴 때는 [중단·복원 절차](INTERVIEW_OPERATIONS.md)를 사용합니다.
 
-## 1. Bootstrap 및 Main 1차
+## 평소 변경 순서
 
-[AWS_SETUP](AWS_SETUP.md)의 Bootstrap/SSO/도메인/Secret 준비가 선행됩니다. 기존 platform/live State가 있다면 먼저 [State 이전 검토](TERRAFORM_STRUCTURE.md)를 수행하고 새 Root를 바로 적용하지 마세요.
+| 변경 | 반영 방법 |
+| --- | --- |
+| React 코드 | frontend-deploy |
+| Spring Boot 코드 | backend-deploy |
+| LIVE / 샘플, 공개 지도 키 | runtime-config |
+| CPU·메모리·서브넷·Secret ARN·인증서 | Terraform 검토·적용. ECS 설정 변경 후 backend-deploy |
+| AIOps Python / 설정 | 로컬 검사 → ZIP 빌드 → Terraform 검토·적용 |
 
-infra/terraform.tfvars에서 enable_backend=false/image_digest=""를 설정합니다. Main은 vpc/frontend/ecr/iam을 먼저 연결하고 이후 nat/alb/rds/ecs를 같은 State에 추가합니다. 이 단계도 VPC/S3/CloudFront/ECR/IAM 비용이 발생할 수 있습니다.
+저장 계획은 매번 `infra/base.tfplan`을 새로 만듭니다. 이전 코드나 부분 적용 전의 계획을 다시 사용하지 않습니다.
 
 ```bash
-terraform -chdir=infra init -backend-config=backend.hcl
 terraform -chdir=infra validate
 terraform -chdir=infra plan -out=base.tfplan
-# 사용자가 plan/비용/계정 확인 후에만
+# 전체 변경 목록과 비용을 검토한 뒤 운영자가 직접 실행
 terraform -chdir=infra apply base.tfplan
-terraform -chdir=infra output
 ```
 
-출력된 ecr_url/frontend_bucket/cloudfront_id/github_roles를 기록합니다. ECS/RDS가 아직 없는 것은 정상이며 **LIVE 배포 성공이 아닙니다.** 정적 DEMO를 배포해 테스트할 수 있습니다.
+기존 자원의 예상 밖 삭제·교체가 있으면 적용 전에 원인을 확인합니다. 실패한 apply는 이미 생성한 자원을 자동으로 모두 되돌리지 않습니다. State나 리소스를 지우기보다 새 계획에서 남은 변경을 확인하세요.
 
-## 2. 최초 Backend 이미지 — GitHub Actions 자동 업로드
+## GitHub 설정
 
-`backend-deploy.yml`은 main의 Backend 관련 파일 push 또는 수동 실행 시 테스트 → 이미지 빌드 → ECR push를 수행합니다. 첫 이미지에는 ECS가 필요하지 않습니다. 인프라를 생성하거나 Terraform을 실행하지 않습니다. 이미지 태그는 `ci-실행ID-재시도번호`로 고유하며 amd64로 빌드합니다.
+Settings → Environments에 `frontend`, `backend`를 만듭니다. OIDC 신뢰 조건과 이름이 일치해야 하며, main 배포 제한을 권장합니다. 장기 AWS Access Key 대신 Environment별 IAM Role을 사용합니다.
 
-1. GitHub Settings → Environments → `backend`를 생성합니다. 기존 IAM OIDC 신뢰는 이 Environment 이름을 사용하므로 정확히 일치해야 합니다. 가능하면 배포 branch를 main으로 제한합니다.
-2. `backend` Environment Variables에는 최초 업로드용으로 `AWS_ACCOUNT_ID`, `BACKEND_ROLE_ARN`, `ECR_URL` 세 개만 입력합니다. 값은 기존 Terraform output `github_roles`의 backend ARN과 `ecr_url`에서 확인합니다. AWS Access Key를 GitHub에 등록하지 않고 OIDC를 사용합니다.
-3. Repository Variables의 `AWS_DEPLOY_ENABLED=true`, `AWS_BACKEND_DEPLOY_ENABLED=false`로 설정합니다. 전자는 기존 frontend와 공유하는 전체 앱 배포 스위치이며 job 시작 전에 평가되므로 Repository에 둡니다. 후자는 서버 배포 스위치입니다. backend Environment에 같은 이름의 값을 중복 등록하지 않습니다.
-4. 변경 파일을 main에 반영하면 Backend 관련 push에서 자동 실행됩니다. 수동 실행은 Actions → backend-deploy → Run workflow → main으로 진행합니다. 코드 작성만으로 실행된 것은 아니며 실제 push/실행은 사용자 작업입니다.
+Repository Variables:
 
-성공한 실행의 Summary에는 이미지 URI, 태그, commit, `image_digest = "sha256:..."`가 표시됩니다. 이 digest를 로컬 tfvars에 입력합니다. 서버 배포 플래그가 false이면 ECS API, 서버 배포, API smoke, runtime LIVE 전환은 실행하지 않습니다. ECR 저장비와 GitHub Actions 사용량은 발생할 수 있습니다.
+| 이름 | 역할 |
+| --- | --- |
+| AWS_DEPLOY_ENABLED | true일 때 앱 배포 job 실행. Environment에만 넣으면 job이 Skipped될 수 있음 |
+| AWS_BACKEND_DEPLOY_ENABLED | true일 때 이미지 업로드 이후 ECS 배포까지 수행. false면 이미지 업로드만 수행 |
 
-현재 단계에서는 frontend 주소/버킷/Distribution/ECS 변수가 없어도 이미지 업로드가 가능합니다. 전체 앱 배포 스위치가 false 또는 미설정이면 workflow job은 Skipped입니다. 테스트 실패나 ECR 부재는 실패로 처리하며 저장소를 자동 생성하지 않습니다.
+Environment Variables:
 
-## 3. Main 2차 — Backend 추가
+| Environment | 필요한 값 |
+| --- | --- |
+| frontend | AWS_ACCOUNT_ID, FRONTEND_ROLE_ARN, FRONTEND_BUCKET, CF_DISTRIBUTION_ID, FRONTEND_URL |
+| backend — 최초 이미지 업로드 | AWS_ACCOUNT_ID, BACKEND_ROLE_ARN, ECR_URL |
+| backend — ECS/LIVE까지 | 위 값 + ECS_CLUSTER, ECS_SERVICE, TASK_FAMILY, FRONTEND_URL, FRONTEND_BUCKET, CF_DISTRIBUTION_ID, PUBLIC_KAKAO_MAP_KEY |
 
-[도메인 안내서](DOMAIN_SETUP.md)의 API 인증서 요청(manage_api_certificate=true) → 가비아 검증 CNAME 등록 → 검증(api_certificate_validation_enabled=true)을 Backend가 꺼진 상태에서 먼저 완료합니다. 이미지 digest와 7개 Secret ARN을 확인한 후 enable_backend=true로 바꿉니다. 자동 인증서 모드에서는 alb_certificate_arn을 직접 입력하지 않습니다. 같은 Main State이며 별도 LIVE Root/-target이 없습니다.
+버킷·역할·클러스터 값은 Terraform output을 사용합니다. PUBLIC_KAKAO_MAP_KEY에는 공개 JavaScript 키를 넣습니다. 서버 REST 키나 OpenAI 키를 넣지 않습니다. Repository 스위치와 같은 이름을 Environment에 중복 등록하지 마세요.
 
-```bash
-terraform -chdir=infra plan -out=base.tfplan
-# NAT/EIP/ALB/ECS/RDS 비용과 DB 정책을 사용자 검토 후
-terraform -chdir=infra apply base.tfplan
-terraform -chdir=infra output
-```
+## Frontend와 Backend 배포
 
-ECS desired/running≥1, 단일 deployment 완료, ALB target healthy, RDS available/private, 로그 Flyway migration 성공을 확인합니다. ECS 서비스는 steady state를 기다리지만 이 결과만으로 전체 앱 성공을 주장하지 마세요. 첫 기동은 동일 V1~V8 migration이 빈 RDS에 적용됩니다.
+Actions → 해당 workflow → Run workflow → main으로 실행할 수 있습니다. main에 관련 파일을 push해도 배포 스위치가 켜져 있으면 실행됩니다.
 
-Flyway의 PostgreSQL 잠금은 동시 migration 실행을 조정합니다. 여러 task 배포 시 기존/새 코드가 잠시 공존하므로 additive migration→코드 전환→후속 제거 방식으로 호환성을 유지하세요. 배포 중 table/column 즉시 삭제와 migration checksum 수정을 피하고, 기존 버전 호환이 없으면 별도 점검 시간/전용 migration job을 계획하세요. 이번 작업에서 운영 migration job을 추가하지 않았습니다.
+Frontend는 검증·빌드 후 assets를 먼저, HTML을 나중에 업로드합니다. 기존 해시 assets를 즉시 지우지 않고 runtime-config도 덮어쓰지 않습니다. `/news`, `/transit`, `/calendar`, `/my`, `/settings` 직접 접속과 새로고침을 확인합니다.
 
-## 4. Frontend 배포
+Backend는 테스트 후 amd64 이미지를 ECR에 올립니다. 태그는 실행마다 고유하며 Summary의 image digest를 `terraform.tfvars`의 image_digest에도 기록합니다. ECS 배포가 켜져 있으면 새 revision 등록 → 서비스 변경 → 신규 revision 확인 → API smoke → LIVE 전환 순서로 진행합니다. waiter가 성공해도 구버전으로 rollback됐으면 배포 실패로 처리합니다.
 
-GitHub Environment/Variables를 채운 뒤 사용자가 앱 배포를 승인할 때만 AWS_DEPLOY_ENABLED=true로 설정합니다. frontend-deploy는 main push 또는 수동 실행, backend-deploy는 main의 Backend 관련 변경 push 또는 수동 실행입니다. 서버 배포는 AWS_BACKEND_DEPLOY_ENABLED=true일 때만 실행합니다. 두 배포는 concurrency로 직렬화합니다. **GitHub Actions는 Terraform을 실행해 인프라를 생성·삭제하지 않습니다.**
+Terraform은 Task 설정을 관리하고 실제 서비스 revision은 CI가 관리합니다. Terraform으로 환경값·CPU·Secret을 바꾼 뒤에는 backend-deploy를 이어 실행해야 서비스에 최신 설정이 반영됩니다. 기존 Flyway migration은 수정하지 않고 새 파일을 추가합니다. 구버전과 호환되지 않는 DB 변경은 이미지 rollback만으로 복구되지 않습니다.
 
-```bash
-# 인프라가 준비된 이후에만 사용자가 실행
-gh workflow run frontend-deploy.yml --ref main
-```
+## LIVE 또는 샘플만 전환
 
-빌드/검사→OIDC→기존 bucket/CF 확인→assets 먼저/HTML 나중 업로드→index invalidation→정적 DEMO smoke를 수행합니다. runtime-config를 덮어쓰지 않고 old hash assets도 즉시 삭제하지 않습니다. 직접 배포하려면 같은 절차를 사용합니다.
+Actions → runtime-config → main → LIVE 또는 STATIC_DEMO를 선택합니다. backend Environment와 AWS_DEPLOY_ENABLED=true가 필요합니다. LIVE는 API smoke와 공개 지도 키 확인을 통과해야 반영됩니다. ECR 빌드나 ECS 재배포는 하지 않습니다.
 
-```bash
-npm --prefix frontend ci
-npm --prefix frontend run build
-FRONTEND_BUCKET=$(terraform -chdir=infra output -raw frontend_bucket)
-CF_ID=$(terraform -chdir=infra output -raw cloudfront_id)
-aws s3 sync frontend/dist/assets "s3://$FRONTEND_BUCKET/assets" --cache-control 'public,max-age=31536000,immutable'
-aws s3 sync frontend/dist "s3://$FRONTEND_BUCKET" --exclude 'assets/*' --exclude runtime-config.json --cache-control 'no-cache,max-age=0'
-aws cloudfront create-invalidation --distribution-id "$CF_ID" --paths /index.html
-```
+Terraform은 runtime-config.json을 처음 생성한 뒤 `ignore_changes=all`로 CI에 관리를 맡깁니다. 이를 제거하면 초기 샘플 설정이 다시 업로드될 수 있습니다. 브라우저에 샘플 선택이 남아 있다면 LIVE 다시 연결로 해제하세요.
 
-CloudFront 기본 HTTPS 도메인 `/`, `/news`, `/calendar`, `/transit`, `/my`, `/settings` 직접 진입/새로고침을 확인합니다(실제 router를 기준으로 사용). 없는 JS/CSS는 index200이 아닌 오류여야 합니다. `/move`,`/mypage`는 요청 예시이며 현 프로젝트 실제 주소가 아닙니다. STATIC_DEMO에서는 `/api` 요청 없이 샘플을 표시합니다.
+## 도메인과 인증서
 
-## 5. API smoke와 LIVE 활성화
+| 가비아 CNAME | 연결 대상 |
+| --- | --- |
+| www | CloudFront 기본 도메인 |
+| api | ALB DNS 주소 |
+| ACM이 출력한 검증 이름 | ACM 검증 값. 갱신을 위해 계속 유지 |
 
-```bash
-FRONTEND_URL=$(terraform -chdir=infra output -raw frontend_url)
-node scripts/smoke-api.mjs "$FRONTEND_URL"
-# 위 smoke 성공 후에만 사용자가 공개 runtime 갱신
-export PUBLIC_KAKAO_MAP_KEY=실제_공개_JavaScript_키
-ALLOW_AWS_MUTATIONS=I_UNDERSTAND_COSTS python3 scripts/set-runtime.py --mode LIVE --bucket "$FRONTEND_BUCKET" --distribution "$CF_ID"
-```
+호스트 칸에 도메인이 자동으로 붙는지 확인하고, 값에 https://나 경로를 넣지 않습니다. www를 대표 주소로 사용하며 루트 도메인의 자동 이동은 별도 구성입니다.
 
-Kakao SDK의 HTTPS 서비스 도메인에 실제 CF/custom frontend origin을 등록합니다. REST 키를 PUBLIC_KAKAO_MAP_KEY에 쓰지 마세요.
+화면 ACM은 us-east-1, API ACM은 ap-northeast-2입니다. Terraform이 인증서를 요청하고 가비아 CNAME 등록은 수동으로 합니다.
 
-LIVE에서 테스트 계정 가입→onboarding→로그인/refresh/logout→위젯 저장→날씨/환율/뉴스→장소/길찾기/즐겨찾기→일정CRUD→사용자별 저장→모바일 HTTPS/GPS를 확인합니다. Cookie HttpOnly/Secure/Lax와 CSRF 실패403, unauth401, 로그 requestId/한글 성공 로그를 함께 확인합니다. 실제 외부 API quota/승인이 필요하며 이번에는 AWS에서 수행하지 않았습니다.
+1. 화면은 manage_frontend_certificate=true, frontend_domain_enabled=false로 요청합니다. API는 manage_api_certificate=true, api_certificate_validation_enabled=false로 요청합니다.
+2. output의 frontend_certificate_dns_validation / api_certificate_dns_validation을 가비아에 등록합니다. 검증 레코드는 서비스 연결용 www/api 레코드와 다릅니다.
+3. DNS 등록 후 해당 검증/연결 플래그를 true로 변경해 새 계획을 검토·적용합니다. 검증 대기는 10분입니다. 타임아웃이면 기존 인증서를 유지하고 CNAME·네임서버·전파 상태부터 확인합니다.
 
-### 실행 설정만 복구할 때
+이미 운영 중인 환경에서 위 요청 단계로 되돌리거나 enable_backend를 false로 바꾸지 않습니다. 기존 인증서가 있다면 중복 요청 대신 현재 소유권부터 확인하세요. 면접 재개로 ALB가 바뀌면 api CNAME만 갱신하고 www와 검증 CNAME은 유지합니다.
 
-이미 Backend가 정상이라면 Actions의 `runtime-config`를 main/LIVE로 수동 실행하여 API smoke 후 실행 설정만 복구할 수 있습니다. backend Environment와 Repository의 AWS_DEPLOY_ENABLED=true가 필요하며, ECR 이미지/ECS 배포 변수는 요구하지 않습니다. LIVE 지도 키는 필수입니다. Terraform은 runtime-config.json을 초기 생성한 뒤 내용/메타데이터 변경을 CI에 맡깁니다. Terraform apply가 LIVE를 DEMO로 덮어쓰지 않도록 해당 S3 객체의 ignore_changes=all을 유지합니다.
+카카오 SDK 허용 도메인에는 `https://www.dailybriefing-son.site`를 정확히 등록합니다. 브라우저 API 경로는 계속 `/api/v1`입니다. ALB 직접 접근은 CloudFront 접근 제한 때문에 차단될 수 있습니다.
 
-## 6. 이후 Backend 앱 배포와 rollback
+## 최초 구축할 때만
 
-```bash
-gh workflow run backend-deploy.yml --ref main
-```
+1. AWS CLI의 계정·서울 리전을 확인합니다. 기존 State가 있다면 같은 backend key를 사용합니다. 다른 Root에서 관리한 리소스를 새 State로 중복 생성하지 않습니다.
+2. bootstrap 예제의 고유 버킷명·계정을 설정해 State용 S3를 생성합니다. 처음 local State를 안전하게 백업하고 backend.tf.example/backend.hcl.example을 복사한 뒤 `init -migrate-state`로 이전합니다. Bootstrap은 Main과 별도이며 삭제하지 않습니다.
+3. Main backend.hcl의 key는 main/terraform.tfstate입니다. 예제를 복사해 계정·버킷·OIDC를 설정하고 `terraform -chdir=infra init -backend-config=backend.hcl`을 실행합니다. backend.hcl에 인증정보를 넣지 않습니다.
+4. 처음에만 enable_backend=false, image_digest=""로 정적 화면·ECR·IAM·네트워크를 준비합니다. Backend 배포 스위치는 false로 두고 최초 이미지를 업로드합니다.
+5. SSM SecureString 또는 Secrets Manager에 JWT_SECRET, KMA_API_KEY, KASI_API_KEY, KAKAO_REST_API_KEY, KOREA_EXIM_API_KEY, NAVER_API_CLIENT_ID, NAVER_API_CLIENT_SECRET을 등록합니다. application_secrets에는 동일 계정·서울 ARN만 넣습니다. 이 앱은 각 SecretString 전체를 읽으므로 단일 문자열을 사용합니다. DB 자격증명은 RDS 관리 Secret을 사용합니다.
+6. image digest·7개 Secret ARN·검증된 서울 API 인증서를 준비한 뒤 enable_backend=true를 검토·적용합니다. NAT·ALB·ECS·RDS 비용이 발생합니다. ALB 주소로 api CNAME을 등록하고 readiness와 DNS를 확인한 뒤 ECS 배포 스위치를 켭니다.
 
-Backend 인프라 생성 및 API DNS 연결 후 backend Environment에 AWS_ACCOUNT_ID/BACKEND_ROLE_ARN/ECR_URL 외 ECS_CLUSTER/ECS_SERVICE/TASK_FAMILY/FRONTEND_URL/FRONTEND_BUCKET/CF_DISTRIBUTION_ID/PUBLIC_KAKAO_MAP_KEY를 입력하고, Repository의 AWS_BACKEND_DEPLOY_ENABLED=true로 전환합니다. 실제 지도에는 공개 JavaScript 지도 키를 사용합니다. ECR 또는 활성 ECS가 없으면 서버 배포 모드에서는 중단합니다. 새 digest push→최신 task family 설정의 image만 교체→revision 등록→service update→wait→**현재 service revision이 신규 revision인지 확인**→same-origin API smoke→runtime LIVE 순서입니다. Circuit breaker가 구버전으로 rollback되어 waiter가 성공해도 신규 revision 검사가 이를 실패로 처리합니다.
+공유 GitHub OIDC가 있으면 기존 ARN을 재사용합니다. Terraform의 init/validate 성공은 배포 완료가 아닙니다. 계정의 비용 알림도 별도로 설정하세요.
 
-Terraform은 환경/역할/Secret/네트워크와 task template을 관리하고, service의 task_definition은 ignore_changes로 CI의 최신 revision을 되돌리지 않습니다. Terraform으로 CPU/env/Secret을 변경하면 새 revision이 등록되지만 서비스는 자동 전환되지 않습니다. 반드시 backend-deploy를 이어 실행해 최신 family 설정을 반영하세요. image_digest tfvar도 현재 성공 digest로 갱신하면 재생성 시 구버전 이미지 혼동을 줄일 수 있습니다.
+## 배포 후 확인
 
-배포 실패 시 기존 정상 서비스를 임의 삭제하지 않습니다. ECS circuit breaker/events/CloudWatch 로그를 확인하고 필요하면 사용자가 직전 정상 task revision으로 update-service합니다. DB migration이 비호환이면 image rollback만으로 복구되지 않을 수 있습니다. 실제 AWS rollback 검증은 남아 있습니다.
-
-## 7. 종료 — Main 전체 삭제, Bootstrap 유지
-
-1. GitHub AWS_DEPLOY_ENABLED=false, 실행 중 앱 배포가 없는지 확인합니다. 사용자 데이터/필요한 로그/ALB·ECS 오류 근거를 안전한 저장소에 보존합니다. CloudWatch 로그도 Main 삭제 대상입니다.
-2. live 사용 중이면 공개 runtime을 STATIC_DEMO로 바꾸고 invalidation을 기다려 개인정보 요청을 중단합니다. Main 전체 삭제 후에는 DEMO 사이트도 사라집니다.
-3. DB protect는 그대로 destroy할 수 없습니다. 테스트 데이터만임을 확인한 뒤 tfvars에 database_disposal="snapshot" 또는 "discard", ephemeral_database_ack=true를 설정합니다. snapshot이면 매번 고유 final_snapshot_identifier가 필요합니다. snapshot은 삭제 후에도 과금됩니다. 보호 해제는 일반 plan/apply로 먼저 반영합니다.
-4. S3 버전/삭제 마커 전체와 ECR 이미지를 검토/필요한 파일을 백업합니다. 기본 allow_storage_cleanup=false는 비어 있지 않은 저장소의 삭제를 막습니다. 수동으로 비우거나, **모든 버전/이미지 삭제에 동의한 테스트 저장소에 한해** allow_storage_cleanup=true를 설정하고 일반 plan/apply로 반영합니다.
-
-```bash
-# 아래 명령은 사용자가 데이터/로그/DB/S3/ECR 검토 후에만 직접 실행
-terraform -chdir=infra plan -out=cleanup-policy.tfplan
-terraform -chdir=infra apply cleanup-policy.tfplan
-terraform -chdir=infra plan -destroy -out=destroy.tfplan
-terraform -chdir=infra show destroy.tfplan
-# 삭제 대상을 최종 확인한 경우 저장된 동일 plan만 적용
-terraform -chdir=infra apply destroy.tfplan
-# terraform destroy는 같은 목적의 대안이며 두 번 실행할 필요가 없습니다.
-```
-
-Main에 있는 VPC/서브넷/CF/S3/ECR/로그/IAM/ALB/ECS/RDS/NAT/EIP가 전부 삭제 대상인지 검토합니다. Bootstrap 디렉터리에서 destroy하지 마세요. force cleanup은 기본 true가 아니며 실제 사용자 데이터를 임의로 지우지 않습니다.
-
-## 8. 잔여 비용 확인과 재배포
-
-삭제 후 Console에서 VPC→NAT Gateways(deleted)/Elastic IPs(해제), EC2→Load Balancers(없음), ECS services/tasks(실행0), RDS databases(없음)/snapshots(보존 의도 확인), S3/ECR/CloudFront/CloudWatch logs·alarms/IAM 역할을 각각 확인합니다. NAT 삭제와 EIP 해제는 별개입니다. 공유 VPC ENI/SG 의존, RDS deletion protection, snapshot 이름 충돌, S3 object versions, ECR images, CloudFront 배포 중 상태, IAM 연결/권한 때문에 삭제가 실패할 수 있습니다. State를 지우지 말고 실패 자원을 해결한 뒤 새 destroy plan을 검토합니다.
-
-State bucket, 사용자 선행 Secret/ACM/DNS/공유 OIDC, 수동 snapshot/backup, 내보낸 로그 저장소, Budgets/SNS 등의 잔존 비용은 별도입니다. Cost Explorer/Bills는 반영 지연이 있으므로 다음 집계도 확인합니다. 무료라고 가정하지 않습니다.
-
-재배포는 같은 Main에서 enable_backend=false/image_digest=""/allow_storage_cleanup=false로 기반을 다시 만들고, 이미지 업로드→true/digest→Backend→정적 배포→smoke→runtime LIVE를 반복합니다. test DB는 새로 생성되며 snapshot 복구를 원하면 restore_snapshot_identifier/db_name/Secret/rotation 동작을 별도 검증하세요. ECR도 Main과 함께 삭제되므로 이전 digest가 남아 있다고 가정하지 않습니다.
-
-## 선택적 AIOps
-
-기존 8개 인프라 모듈과 같은 Main State에 선택적 aiops를 연결했습니다. 기본은 리소스 OFF/AI OFF입니다. 로컬 Python 검사→Linux Lambda ZIP 빌드→사용자 ARN/이메일/설정 준비→명시적 수동 인프라 절차 순서입니다. 실제 리소스 생성/이메일 발송/유료 API는 이번 작업에서 하지 않았습니다. [AIOPS 배포/종료 절차](AIOPS_AWS_DEPLOYMENT.md), [비용/보안](AIOPS_COST_SECURITY.md), [사용자 체크리스트](AIOPS_CHECKLIST.md)를 따르세요. Main 전체 삭제에는 AIOps 상태/구독/함수도 포함되고 사전 등록 Secret은 별도 관리합니다.
+로그인·refresh·로그아웃, 위젯 저장, 개인 일정, 즐겨찾기, 외부 정보, 지도·모바일 GPS를 확인합니다. API 실패 시 요청 번호로 CloudWatch 로그를 찾습니다. 새 배포가 실패하면 ECS events/stoppedReason과 로그를 확인하고 정상 서비스나 State부터 삭제하지 않습니다. [문제 해결](TROUBLESHOOTING.md), [테스트](TESTING.md), [AIOps](AIOPS.md)를 참고하세요.

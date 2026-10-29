@@ -1,6 +1,6 @@
 # Daily Briefing 클라우드 아키텍처
 
-이 문서는 현재 Terraform과 애플리케이션의 요청 경로·보안 경계·운영 책임을 설명합니다. AWS 리소스 목록을 실시간 조회한 보고서가 아닙니다. 서비스는 사용자 적용으로 배포했으며, AIOps 활성화와 면접용 중단·복원 왕복 검증은 별도로 남아 있습니다.
+이 문서는 현재 Terraform과 애플리케이션의 요청 경로·보안 경계·운영 책임을 설명합니다. AWS 리소스 목록을 실시간 조회한 보고서가 아닙니다. 서비스와 AIOps는 배포되어 있습니다. 합성 ERROR 6종의 분석·SNS 게시를 확인했으며, 면접용 중단·복원 왕복 검증은 남아 있습니다.
 
 ## 1. 서비스 네트워크
 
@@ -79,7 +79,9 @@ Terraform과 CI가 같은 runtime 파일을 서로 다른 내용으로 재업로
 
 ![선택적 AIOps](assets/architecture/aiops-architecture.png)
 
-AIOps는 현재 미활성입니다. Backend ERROR 구독과 ECS 실패 EventBridge → Python Lambda → 분류/마스킹 → DynamoDB 중복·사용량 관리 → 선택적 AI → SNS 이메일 구조입니다. Lambda는 앱 VPC에 연결하지 않습니다. 실제 AI 호출/메일 발송/운영 부하는 아직 검증되지 않았습니다. [AIOps 설계](AIOPS_ARCHITECTURE.md)
+CloudWatch ERROR 구독과 ECS 실패 이벤트가 Python Lambda를 호출합니다. 함수는 로그를 정제·분류하고 DynamoDB에 전달 상태·반복 횟수·일일 사용량을 기록합니다. 평소에는 개별 알림을 보내며, 같은 오류가 3분 안에 10회 발생하면 10번째부터 10분간 모아 요약합니다. 요약 시점에는 일회성 Scheduler를 사용합니다.
+
+AI는 원인 후보와 확인 순서를 작성하고 SNS가 이메일을 발송합니다. AI 장애나 한도 도달 시 기본 점검 안내로 대체합니다. Lambda는 앱 VPC 밖에서 실행하며 인프라를 자동 수정하지 않습니다. [설정과 운영](AIOPS.md), [6종 시험 결과](AIOPS_OPERATIONAL_TEST_REPORT.md)를 참고하세요.
 
 ## 5. 비용과 면접용 생명주기
 
@@ -91,6 +93,6 @@ AIOps는 현재 미활성입니다. Backend ERROR 구독과 ECS 실패 EventBrid
 
 ## 확장 시 결정할 사항
 
-실측 부하·가용성 요구에 따라 Task 다중 AZ, NAT 장애 지점, RDS Multi-AZ, 원본 인증, 외부 API 캐시를 검토합니다. 현재 Redis·EKS·멀티리전 DR·뉴스 ML 파이프라인은 구현하지 않았습니다. AIOps 활성화도 별도 사용자 검토·적용 단계입니다.
+실측 부하·가용성 요구에 따라 Task 다중 AZ, NAT 장애 지점, RDS Multi-AZ, 원본 인증, 외부 API 캐시를 검토합니다. 현재 Redis·EKS·멀티리전 DR·뉴스 ML 파이프라인은 구현하지 않았습니다.
 
 그림은 [AWS 공식 아이콘](https://aws.amazon.com/architecture/icons/)으로 작성했습니다. [편집 원본/재생성](assets/architecture/README.md)

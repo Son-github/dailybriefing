@@ -156,8 +156,8 @@ def delivery():
 
 
 def aiops():
-    d=Diagram(1800,675,"Daily Briefing | 장애 분석 및 알림", "구축 완료를 전제로 한 구성 · 오류 수집 → 분류 → AI 분석 → 이메일 알림")
-    d.boundary(40,125,1710,470,"AIOps · 오류 분석 및 알림 처리 영역",PURPLE,"#fcfaff",True)
+    d=Diagram(1800,780,"Daily Briefing | 장애 분석 및 알림", "구축 완료를 전제로 한 구성 · 오류 수집 → 분류 → AI 분석 → 이메일 알림")
+    d.boundary(40,125,1710,565,"AIOps · 오류 분석 및 알림 처리 영역",PURPLE,"#fcfaff",True)
     d.line("M355 235 H410 V300 H470","purple")
     d.line("M355 430 H410 V335 H470","purple")
     d.line("M800 280 H855 V220 H900","purple")
@@ -168,16 +168,20 @@ def aiops():
     d.line("M1480 220 H1510 V365 H820 V420 H730 V380","purple",True)
     d.text(1120,353,"분석 결과 · 실패 시 기본 알림",15,PURPLE,label=True)
     d.line("M1480 455 H1540","purple")
+    d.line("M800 350 H850 V550 H900", "purple")
+    d.line("M900 570 H840 V410 H780 V380", "purple", True)
     d.card(70,190,285,90,"CloudWatch Logs","백엔드 오류 로그","cloudwatch",PURPLE)
     d.card(70,385,285,90,"EventBridge","ECS 작업 중단 · 배포 실패","eventbridge",PURPLE)
     d.card(470,235,330,145,"Python Lambda","파싱 → 민감정보 제거 → 분류","lambda",BLUE)
     d.text(492,440,"애플리케이션 VPC 외부 실행",16,MUTED)
-    d.card(900,175,260,90,"DynamoDB","중복 방지 · 일일 처리 한도","dynamodb",BLUE)
+    d.card(900,175,260,90,"DynamoDB","오류 횟수 · 집계 · 일일 한도","dynamodb",BLUE)
     d.card(1240,175,240,90,"AI 분석 API","사용 설정 · 호출 한도 적용",color=PURPLE,dash=True)
     d.card(1240,410,240,90,"Amazon SNS","한국어 오류 알림","sns",PURPLE)
     d.card(1540,410,180,90,"이메일","운영자 수신 확인",color=INK)
-    d.text(70,551,"인프라 자동 복구 권한 없음 · AI 실패 시 기본 알림 · Lambda 처리 실패는 별도 CloudWatch 알람으로 감지",17,MUTED)
-    d.text(42,641,"운영 제어: AI 전달 전 민감정보 제거 · 일일 호출 한도 · 중복 알림 방지 · 인프라 변경 권한 없음",17,MUTED)
+    d.card(900,510,290,80,"EventBridge Scheduler","10분 집계 후 한 번 실행 · 자동 삭제",color=PURPLE)
+    d.text(70,620,"평소 개별 알림 · 3분 안에 10회 발생하면 10번째부터 10분 집계 · 정기 점검 없음",17,MUTED)
+    d.text(70,650,"인프라 자동 복구 권한 없음 · AI 실패 시 기본 알림 · Lambda 처리 실패는 별도 CloudWatch 알람으로 감지",17,MUTED)
+    d.text(42,741,"운영 제어: 민감정보 제거 · 일일 호출 한도 · 재전송 제외 · 버킷 식별자만 예약에 전달 · 인프라 자동 복구 없음",17,MUTED)
     d.save("aiops-architecture")
 
 

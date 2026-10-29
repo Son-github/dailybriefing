@@ -59,7 +59,7 @@ React와 Spring Boot로 구현했으며, Terraform으로 AWS 인프라를 관리
 - React 빌드는 재사용하고 `runtime-config.json`으로 샘플/LIVE와 공개 지도 키를 주입합니다. Frontend 배포는 이 파일을 덮어쓰지 않습니다.
 - **Terraform plan / apply / destroy를 Actions에서 자동 실행하지 않습니다.** 인프라는 운영자가 계획과 비용을 검토한 뒤 직접 적용합니다.
 
-[배포 순서·변수·롤백](docs/DEPLOYMENT.md) · [도메인과 인증서](docs/DOMAIN_SETUP.md)
+[배포·GitHub 변수·도메인 설정](docs/DEPLOYMENT.md)
 
 ## 인프라 중단과 복원
 
@@ -74,7 +74,7 @@ running → prepare-suspend → suspended → running
 | --- | --- |
 | CloudFront / S3 / ECR / ACM / VPC / 보안 그룹 / State | NAT·EIP / ALB / ECS / RDS 등 실행 자원 |
 
-중단 전 샘플 체험으로 전환하고, DB 최종 스냅샷 정책을 먼저 적용합니다. 로컬 계획 검사로 준비 없는 DB 삭제·보존 자원 삭제·기존 DB 교체·스냅샷 없는 복원을 거절합니다. 재개 후 가비아 **api CNAME만 새 ALB 주소로 갱신**하며 www와 인증서 검증 레코드는 유지합니다.
+중단 전 샘플 체험으로 전환하고, DB 최종 스냅샷 정책을 먼저 적용합니다. 이 준비 단계에서 AIOps 수집도 자동 중지하며, 중단 시 일회성 예약을 포함한 AIOps 자원을 함께 제거합니다. 재개 시 SNS 구독은 다시 승인해야 합니다. 로컬 계획 검사로 준비 없는 DB 삭제·보존 자원 삭제·기존 DB 교체·스냅샷 없는 복원을 거절합니다. 재개 후 가비아 **api CNAME만 새 ALB 주소로 갱신**하며 www와 인증서 검증 레코드는 유지합니다.
 
 전환 스크립트와 계획 검사 도구는 로컬 테스트를 완료했습니다. 실제 AWS 중단·복원 전체 절차는 추가 검증이 필요합니다. 중단 중에도 스냅샷·이미지·정적 파일·비밀정보의 보관 비용은 발생할 수 있습니다.
 
@@ -86,15 +86,17 @@ running → prepare-suspend → suspended → running
 
 [상세 구성도 원본](docs/assets/architecture/aiops-architecture.svg)
 
-> 이 절은 AIOps 구축 완료를 전제로 작성했습니다. 실제 배포 및 운영 검증 상태는 [검증 기록](docs/VERIFICATION.md)에서 별도로 관리합니다.
+> AWS에서 합성 ERROR 6종의 AI 응답 처리와 SNS 게시를 확인했습니다. 실제 이메일 수신 사진과 운영 장애 재현은 별도 검증 항목입니다. [시험 결과와 실제 분석 내용](docs/AIOPS_OPERATIONAL_TEST_REPORT.md)
 
 CloudWatch, EventBridge, Lambda, DynamoDB, SNS와 AI API를 연결해 오류 수집부터 분석·이메일 알림까지 처리하는 구조입니다. AI 분석 사용 여부와 호출 한도를 설정으로 관리합니다.
 
-CloudWatch ERROR 로그와 ECS 실패 이벤트를 Lambda로 수집하여 **파싱 → 민감정보 마스킹 → 분류 → 중복/일일 한도 확인 → 선택적 AI 분석 → SNS 이메일**로 연결합니다. AI 실패나 한도 도달 시 기본 알림으로 대체하며, AIOps 처리 자체 실패는 별도 CloudWatch 알람으로 감지하도록 구성했습니다.
+CloudWatch ERROR 로그와 ECS 실패 이벤트를 Lambda로 수집하여 **파싱 → 민감정보 마스킹 → 분류 → 개별 알림/반복 집계 → 선택적 AI 분석 → SNS 이메일**로 연결합니다. AI 실패나 한도 도달 시 기본 알림으로 대체하며, AIOps 처리 자체 실패는 별도 CloudWatch 알람으로 감지하도록 구성했습니다.
+
+동일 오류도 평소에는 개별 알림을 보내고, 수신 기준 3분 안에 10회 발생하면 10번째부터 10분간 집계합니다. 폭주 시에만 EventBridge Scheduler 일회성 예약을 만들어 요약하며 정기 점검 호출은 없습니다. 공급자 재전송은 집계에서 제외하고, 일일 알림·AI 한도는 유지합니다. 변경 정책의 실제 AWS 검증은 별도로 진행합니다.
 
 Lambda는 앱 VPC 밖에서 실행합니다. 인프라 자동 수정 권한은 부여하지 않으며, 모델 분석 결과가 곧 확정 원인이나 자동 복구 명령이 되지는 않습니다.
 
-[설계·한계](docs/AIOPS_ARCHITECTURE.md) · [로컬 검증](docs/AIOPS_LOCAL_TEST.md) · [배포 체크리스트](docs/AIOPS_CHECKLIST.md)
+[AIOps 설정·검증·문제 해결](docs/AIOPS.md)
 
 ## 주요 기능
 
@@ -163,7 +165,7 @@ TanStack Query는 서버 상태, Zustand는 메모리 인증·테마 등 Client 
 | 지도 | Kakao Maps Web SDK | 공개 JavaScript 키, 실제 HTTPS 도메인 등록 |
 | 공휴일 | KASI 특일정보 | KASI_API_KEY |
 
-뉴스 초기 조회는 5개 분야별 5건이며 더 보기로 선택 분야를 추가 조회합니다. API 키·쿼터·이용 승인 조건은 공급자별로 다릅니다. 서버 Secret을 브라우저에 주입하지 않습니다. [발급·연결 가이드](docs/API_SETUP.md) · [외부 API 계약](docs/EXTERNAL_APIS.md)
+뉴스 초기 조회는 5개 분야별 5건이며 더 보기로 선택 분야를 추가 조회합니다. API 키·쿼터·이용 승인 조건은 공급자별로 다릅니다. 서버 Secret을 브라우저에 주입하지 않습니다. [API 발급과 연결](docs/SETUP.md)
 
 ## 로컬 실행
 
@@ -185,7 +187,7 @@ docker compose down
 
 `down`은 named volume을 유지합니다. `down -v`는 계정과 개인 데이터를 지우므로 일상 종료에 사용하지 않습니다. 로컬 `.env`·실제 tfvars·State·계획 파일은 Git에서 제외합니다.
 
-[개별 개발 모드와 환경변수](docs/ENV_LOCAL_GUIDE.md) · [Docker / AWS 환경 비교](docs/LOCAL_VS_AWS.md)
+[개별 개발 모드·환경변수·API 키 설정](docs/SETUP.md)
 
 ## 테스트
 
@@ -209,7 +211,7 @@ python3 scripts/test-set-runtime.py
 
 CI에서는 Compose 실행, 데스크톱·모바일 Playwright 테스트, AIOps 모의 테스트도 수행합니다. 외부 API와 실제 AWS 알림 연동은 별도 검증 대상입니다. 실행 결과는 [GitHub Actions](https://github.com/Son-github/dailybriefing/actions)에서 확인할 수 있습니다.
 
-기록된 로컬 검증 결과(2026-10-26)는 프런트엔드 42개, 배포·운영 도구 Python 테스트 28개 통과입니다. [테스트 전략](docs/TESTING.md) · [검증 기록](docs/VERIFICATION.md)
+최근 검증 기록은 AIOps pytest 117개와 중단·재개 검사 21개 통과(2026-10-29)입니다. 프런트엔드 42개 통과는 2026-10-26 기록입니다. [테스트 실행과 검증 범위](docs/TESTING.md)
 
 ## 디렉터리 구성
 
@@ -220,9 +222,23 @@ infra/              # 단일 Main State, 9개 서비스 모듈, ACM·면접 운�
 infra/bootstrap/    # State용 S3의 별도 Root
 lambda/aiops/       # 선택적 장애 분류·마스킹·분석·알림
 scripts/            # 배포 검사·런타임 설정·중단/재개·검증 도구
-docs/               # 제품 설계·설정·운영·검증·아키텍처 원본
+docs/               # 실행·배포·운영·검증 문서와 아키텍처 원본
 ```
 
 코드를 읽을 때는 [기능별 코드 가이드](docs/CODE_GUIDE.md)에서 진입점을 확인할 수 있습니다. API 계약은 개발용 Swagger(`http://localhost:8080/swagger-ui/index.html`, 개발 모드에서 backend 포트 노출 시)로 확인하며 운영 환경에서는 비활성화합니다.
 
 상세 구성도는 [AWS 공식 아이콘](https://aws.amazon.com/architecture/icons/)을 사용했습니다. [원본과 재생성 방법](docs/assets/architecture/README.md)에서 확인할 수 있습니다.
+
+## 문서 안내
+
+| 필요한 작업 | 문서 |
+| --- | --- |
+| 로컬 실행, .env 작성, API 키 연결 | [로컬·API 설정](docs/SETUP.md) |
+| 네트워크·보안·배포 책임 확인 | [아키텍처](docs/ARCHITECTURE.md) |
+| GitHub 배포, 도메인·인증서 변경 | [AWS 배포](docs/DEPLOYMENT.md) |
+| 면접 전후 서버 중단·복원 | [중단·재개](docs/INTERVIEW_OPERATIONS.md) |
+| AI 분석·반복 알림 설정, 실연동 시험 | [AIOps 운영](docs/AIOPS.md) |
+| 실제 분석 결과와 이메일 증빙 | [6종 시험 보고서](docs/AIOPS_OPERATIONAL_TEST_REPORT.md) |
+| 코드 수정 지점 확인 | [기능별 코드 가이드](docs/CODE_GUIDE.md) |
+| 회귀 테스트 실행 | [테스트](docs/TESTING.md) |
+| 지도·인증·배포 오류 해결 | [문제 해결](docs/TROUBLESHOOTING.md) |

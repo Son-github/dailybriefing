@@ -1,6 +1,6 @@
 # 코드 읽기 가이드
 
-먼저 README의 제품 흐름과 `V2_MOBILITY_UPGRADE.md`의 wireframe을 읽고, 아래 순서로 기능을 따라가세요.
+README에서 서비스 흐름을 확인한 뒤 아래 진입점으로 기능을 따라갈 수 있습니다. 경로는 frontend/src 또는 backend/src/main/java 하위를 기준으로 합니다.
 
 ## 1. 화면 진입과 상태
 
@@ -63,13 +63,13 @@ Frontend는 탈퇴 성공 후 추가 logout HTTP 요청에 의존하지 않고 �
 
 ## 7. DB 변경
 
-기존 Flyway 이력은 수정하지 마세요. V5는 종료된 기능의 데이터/위젯을 이전하고 V6는 일정과 경로를 추가합니다. 이후 변경은 V7 이상 새 migration으로 작성합니다.
+기존 Flyway 이력은 수정하지 마세요. V5는 종료된 기능의 데이터/위젯을 이전하고 V6는 일정과 경로를 추가합니다. 현재 V8까지 있으며 이후 변경은 V9부터 새 migration으로 작성합니다.
 
 FK 삭제 책임은 PostgreSQL입니다. index의 목적은 user range/upcoming/favorite order/전역cleanup이며 새 index는 실제 query 계획을 보고 추가하세요.
 
 ## 8. 실제로 바꿔야 할 설정
 
-`docs/CONFIGURATION.md` 및 `.env.example`의 주석을 따라 key/secret/origin을 설정합니다. source code에 실제 key를 붙여 넣지 마세요. provider host가 바뀌면 환경값을, response 형식이 바뀌면 해당 adapter와 fixture test를 변경합니다.
+`docs/SETUP.md` 및 `.env.example`의 주석을 따라 key/secret/origin을 설정합니다. source code에 실제 key를 붙여 넣지 마세요. provider host가 바뀌면 환경값을, response 형식이 바뀌면 해당 adapter와 fixture test를 변경합니다.
 
 설정을 바꾼 뒤 backend container 재생성, Frontend 환경값을 바꾼 뒤 build 재실행이 필요합니다. Vite는 root `.env`를 읽고 Compose는 VITE_API_BASE만 public Docker build argument로 전달합니다. runtime server env가 이미 빌드된 browser JavaScript 값을 자동 변경하지 않습니다.
 
@@ -85,7 +85,7 @@ FK 삭제 책임은 PostgreSQL입니다. index의 목적은 user range/upcoming/
 - `ErrorDialog`: 한 번에 하나의 Sheet, 요청번호 복사, 조회 재시도. 저장 mutation을 자동 재실행하지 않습니다.
 - `DateTimePicker`: 일정/이동 공통 날짜 달력 및 시간 selector. 날짜는 UTC 변환 없이 서울 날짜 문자열로 유지합니다.
 
-직접 입력할 값은 `.env.example`의 주석과 [API_SETUP](API_SETUP.md)를 참고하세요. 설정 값 변경 후 backend recreate, VITE값 변경 후 frontend rebuild가 필요합니다.
+직접 입력할 값은 `.env.example`의 주석과 [API 설정](SETUP.md)를 참고하세요. 설정 값 변경 후 backend recreate, VITE값 변경 후 frontend rebuild가 필요합니다.
 
 ## 뉴스 카테고리·더 보기
 
